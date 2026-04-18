@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stddef.h>   // NEW: for size_t
 
 //
 // Result codes (per BUN spec section 2)
@@ -12,9 +13,9 @@ typedef enum {
     BUN_OK          = 0,
     BUN_MALFORMED   = 1,
     BUN_UNSUPPORTED = 2,
-    BUN_ERR_IO      = 3,   /* I/O error or file not found -- you may define
-                              additional codes in the range 3-10 as needed;
-                              document them in your report */
+    BUN_ERR_IO      = 3,   /* I/O error or file not found */
+    BUN_ERR_USAGE   = 4,   /* NEW: wrong number of arguments */
+    BUN_ERR_NOMEM   = 5,   /* NEW: memory allocation failed */
 } bun_result_t;
 
 //
@@ -64,75 +65,106 @@ typedef struct {
 } BunAssetRecord;
 
 //
-// Expected on-disk sizes -- these can be used in assertions or static_asserts.
+// Expected on-disk sizes
 //
 
 #define BUN_HEADER_SIZE       60
 #define BUN_ASSET_RECORD_SIZE 48
 
 //
-// Parse context
+// NEW: Violation messages
 //
-// A struct to store information about the state of your parser (rather than
-// passing multiple arguments to every function).
+// A violation is a single error message the parser produces when it spots
+// something wrong in the .bun file. The parser stores violations in the
+// BunParseContext as it goes; main.c prints them to stderr at the end.
 //
-// You will likely want to add fields to it as your implementation grows.
+
+#define BUN_VIOLATION_MAX 256   // max length of a single violation string
+
+typedef struct {
+    char message[BUN_VIOLATION_MAX];
+} BunViolation;
+
+//
+// CHANGED: Parse context
+//
+// A struct to store the parser's state and results. Created empty by main.c
+// and passed into each parser function. Fields filled in as parsing proceeds.
 //
 
 typedef struct {
-    FILE   *file;           // open file handle
-    long    file_size;      // total file size in bytes
-    // add further fields here as needed
+    // --- file handle (existing) ---
+    FILE *file;           // open file handle
+    long  file_size;      // total file size in bytes
+
+    // --- NEW: decoded header (filled by bun_parse_header) ---
+    BunHeader header;
+    int       header_parsed;   // 0 = not yet, 1 = done
+
+    // --- NEW: decoded asset records (filled by bun_parse_assets) ---
+    BunAssetRecord *records;       // heap-allocated array of length record_count
+    u32             record_count;
+
+    // --- NEW: list of violations collected during parsing ---
+    BunViolation *violations;          // heap-allocated growable array
+    size_t        violation_count;     // number of messages currently stored
+    size_t        violation_capacity;  // number of slots allocated
 } BunParseContext;
 
 //
 // Public API
 //
-// The function declarations below define the public API for your parser;
-// you implement them in the `bun_parse.c` file.
+// Parser functions return result codes and do not print to stdout or stderr
+// themselves. All output happens in main.c based on the returned code and
+// the contents of the BunParseContext.
 //
-// A note on I/O and output:
-//   The functions below return result codes; the intention is that they
-//   should not print to stdout or stderr themselves.
-//   Keeping I/O out of these functions makes them much easier to test (your
-//   tests can call them and inspect the return value without terminal output
-//   getting cluttered with other content).
-//   If you need to pass additional information in or out, `ctx` is a good place
-//   to put it.
-//
-//   So printing (human-readable output for valid files and error messages
-//   for invalid ones) should happen in main.c, based on the result code and
-//   the content of `ctx`.
-//
-//   (This is a suggestion, not a requirement. But mixing output deeply into
-//   parsing logic tends to make both harder to maintain.)
 
 /**
- * Open a BUN file and populate ctx. Returns BUN_ERR_IO if the file cannot
- * be opened or its size determined.
+ * Open a BUN file and populate ctx->file and ctx->file_size.
+ * Returns BUN_ERR_IO if the file cannot be opened or its size determined.
  */
 bun_result_t bun_open(const char *path, BunParseContext *ctx);
 
 /**
- * Parse and validate the BUN header from ctx->file, populating *header.
- * Returns BUN_OK, BUN_MALFORMED, or BUN_UNSUPPORTED.
+ * Parse and validate the BUN header from ctx->file.
+ * On BUN_OK: sets ctx->header and ctx->header_parsed = 1.
+ * On BUN_MALFORMED/BUN_UNSUPPORTED: appends one or more messages to
+ * ctx->violations describing the problem(s) found.
  */
-bun_result_t bun_parse_header(BunParseContext *ctx, BunHeader *header);
+bun_result_t bun_parse_header(BunParseContext *ctx);
 
 /**
- * Parse and validate all asset records. Called after bun_parse_header().
- * Returns BUN_OK, BUN_MALFORMED, or BUN_UNSUPPORTED.
- *
- * You will probably want to extend this signature -- for instance, to pass
- * in the header (needed for offset calculations) or to return the parsed
- * records to the caller.
+ * Parse and validate all asset records. Must be called after bun_parse_header.
+ * On BUN_OK: allocates ctx->records and sets ctx->record_count.
+ * On BUN_MALFORMED/BUN_UNSUPPORTED: appends messages to ctx->violations.
  */
-bun_result_t bun_parse_assets(BunParseContext *ctx, const BunHeader *header);
+bun_result_t bun_parse_assets(BunParseContext *ctx);
 
 /**
- * Close the file handle in ctx. Must only be called on a BunParseContext
- * holding an open FILE*. Returns BUN_OK on success, BUN_ERR_IO on error.
+ * Close the file handle in ctx. Does not free heap memory -- use
+ * bun_ctx_free for that.
  */
 bun_result_t bun_close(BunParseContext *ctx);
+
+//
+// NEW: helpers used by the parser to record problems and clean up.
+//
+
+/**
+ * Append a printf-style formatted message to ctx->violations.
+ * Grows the violations array as needed.
+ * Returns 0 on success, non-zero on allocation failure.
+ *
+ * Example:
+ *   bun_add_violation(ctx, "asset %u: bad name length %u", i, len);
+ */
+int bun_add_violation(BunParseContext *ctx, const char *fmt, ...);
+
+/**
+ * Free any heap memory owned by ctx (records array, violations array).
+ * Safe to call on a zero-initialised or partially-populated context.
+ * Does not close the file -- call bun_close for that.
+ */
+void bun_ctx_free(BunParseContext *ctx);
 
 #endif // BUN_H
