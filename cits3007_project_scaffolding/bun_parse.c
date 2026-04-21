@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdint.h>
+#include <stddef.h>
 
 #include "bun.h"
 
@@ -30,88 +32,131 @@ static u64 read_u64_le(const u8 *buf, size_t offset) {
      | (u64)buf[offset + 5] << 40
      | (u64)buf[offset + 6] << 48
      | (u64)buf[offset + 7] << 56;
-
 }
-// need to write forward declaration for bun_validate_rle(ctx, i, r);  so i can call it
 
-// helper for bun_parse_assets
-static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetRecord *r)
-{
-    /* ---------- 1. name bounds ---------- */
-    u64 name_end = (u64)r->name_offset + (u64)r->name_length;
 
-    if (r->name_length < 1 ||
-        name_end > ctx->header.string_table_size) {
+// suggested function call for bun_validate_rle
+static bun_result_t bun_validate_rle(BunParseContext *ctx, u32 i, const BunAssetRecord *r);
 
-        bun_add_violation(ctx, "asset %u: invalid name bounds", i);
-        return BUN_MALFORMED;
-    }
+/**
+ * Decode a raw 48-byte buffer into a BunAssetRecord.
+ */
+static void parse_record(BunAssetRecord *r, const u8 *buf) {   // CHANGED (new function)
+  r->name_offset = read_u32_le(buf, 0);
+  r->name_length = read_u32_le(buf, 4);
 
-    /* ---------- 2. name printable ASCII ---------- */
-    if (fseek(ctx->file,
-              (long)(ctx->header.string_table_offset + r->name_offset),
-              SEEK_SET) != 0) {
-        return BUN_ERR_IO;
-    }
+  r->data_offset = read_u64_le(buf, 8);
+  r->data_size   = read_u64_le(buf, 16);
 
-    for (u32 j = 0; j < r->name_length; j++) {
-        int c = fgetc(ctx->file);
+  r->uncompressed_size = read_u64_le(buf, 24);
 
-        if (c == EOF) {
-            bun_add_violation(ctx, "asset %u: name read error", i);
-            return BUN_MALFORMED;
-        }
+  r->compression = read_u32_le(buf, 32);
+  r->type        = read_u32_le(buf, 36);
 
-        if (c < 0x20 || c > 0x7E) {
-            bun_add_violation(ctx, "asset %u: non-printable character in name", i);
-            return BUN_MALFORMED;
-        }
-    }
+  r->checksum = read_u32_le(buf, 40);
+  r->flags    = read_u32_le(buf, 44);
+}
 
-    /* ---------- 3. data bounds ---------- */
-    u64 data_end = (u64)r->data_offset + (u64)r->data_size;
-    if (data_end > ctx->header.data_section_size) {
-        bun_add_violation(ctx, "asset %u: data out of bounds", i);
-        return BUN_MALFORMED;
-    }
+/**
+ * Validate a single asset record against the BUN specification.
+ */
+static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetRecord *r) {
+  // VALIDATE NAME
+  u64 name_offset = r->name_offset;
+  u64 name_length = r->name_length;
+  if (name_length > UINT64_MAX - name_offset) {
+      bun_add_violation(ctx, "asset %u: name offset overflow", i);
+      return BUN_MALFORMED;
+  }
+  u64 name_end = name_offset + name_length;
 
-    /* ---------- 4. compression ---------- */
-    if (r->compression == 2) {
-        bun_add_violation(ctx, "asset %u: zlib compression not supported", i);
-        return BUN_UNSUPPORTED;
-    }
+  if (r->name_length < 1 ||
+      name_end > ctx->header.string_table_size) {
 
-    if (r->compression > 2) {
-        bun_add_violation(ctx, "asset %u: unknown compression value", i);
-        return BUN_UNSUPPORTED;
-    }
+      bun_add_violation(ctx, "asset %u: invalid name bounds", i);
+      return BUN_MALFORMED;
+  }
 
-    /* ---------- 5. uncompressed size rule ---------- */
-    if (r->compression == 0 && r->uncompressed_size != 0) {
-        bun_add_violation(ctx, "asset %u: invalid uncompressed size", i);
-        return BUN_MALFORMED;
-    }
+  u64 abs_name_offset = ctx->header.string_table_offset + name_offset;
+  if (abs_name_offset < ctx->header.string_table_offset) {
+      bun_add_violation(ctx, "asset %u: name offset overflow", i);
+      return BUN_MALFORMED;
+  }
 
-    /* ---------- 6. checksum ---------- */
-    if (r->checksum != 0) {
-        bun_add_violation(ctx, "asset %u: checksum not supported", i);
-        return BUN_UNSUPPORTED;
-    }
+  if (fseek(ctx->file, (long)abs_name_offset, SEEK_SET) != 0) { 
+      return BUN_ERR_IO;
+  } 
 
-    /* ---------- 7. flags ---------- */
-    u32 allowed = BUN_FLAG_ENCRYPTED | BUN_FLAG_EXECUTABLE;
+  char *name_buf = malloc((size_t)r->name_length);
+  if (!name_buf) {
+      return BUN_ERR_NOMEM;
+  }
 
-    if (r->flags & ~allowed) {
-        bun_add_violation(ctx, "asset %u: unknown flag bits set", i);
-        return BUN_UNSUPPORTED;
-    }
+  if (fread(name_buf, 1, (size_t)r->name_length, ctx->file) != (size_t)r->name_length) {
+      bun_add_violation(ctx, "asset %u: name read error", i);
+      free(name_buf);
+      return BUN_MALFORMED;
+  }
 
-    /* ---------- 8. RLE delegation ---------- */
-    if (r->compression == 1) {
-        return bun_validate_rle(ctx, i, r);
-    }
+  for (u32 j = 0; j < r->name_length; j++) {
+      if ((unsigned char)name_buf[j] < 0x20 ||
+          (unsigned char)name_buf[j] > 0x7E) {
 
-    return BUN_OK;
+          bun_add_violation(ctx,
+              "asset %u: non-printable character in name", i);
+
+          free(name_buf);
+          return BUN_MALFORMED;
+      }
+  }
+  free(name_buf);
+
+  // VALIDATE DATA
+  u64 data_offset = r->data_offset;         
+  u64 data_size = r->data_size;              
+  if (data_size > UINT64_MAX - data_offset) {
+      bun_add_violation(ctx, "asset %u: data offset overflow", i);
+      return BUN_MALFORMED;
+  }
+  u64 data_end = data_offset + data_size;
+
+  if (data_end > ctx->header.data_section_size) {
+      bun_add_violation(ctx, "asset %u: data out of bounds", i);
+      return BUN_MALFORMED;
+  }
+
+  if (r->compression == 2) {
+      bun_add_violation(ctx, "asset %u: zlib compression not supported", i);
+      return BUN_UNSUPPORTED;
+  }
+
+  if (r->compression > 2) {
+      bun_add_violation(ctx, "asset %u: invalid compression type", i);
+      return BUN_UNSUPPORTED;
+  }
+
+  if (r->compression == 0 && r->uncompressed_size != 0) {
+      bun_add_violation(ctx, "asset %u: invalid uncompressed size", i);
+      return BUN_MALFORMED;
+  }
+
+  if (r->checksum != 0) {
+      bun_add_violation(ctx, "asset %u: checksum not supported", i);
+      return BUN_UNSUPPORTED;
+  }
+
+  u32 allowed = BUN_FLAG_ENCRYPTED | BUN_FLAG_EXECUTABLE;
+
+  if (r->flags & ~allowed) {
+      bun_add_violation(ctx, "asset %u: unknown flag bits set", i);
+      return BUN_UNSUPPORTED;
+  }
+
+  if (r->compression == 1) {
+      return bun_validate_rle(ctx, i, r);
+  }
+
+  return BUN_OK;
 }
 
 //
@@ -261,55 +306,72 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
     return BUN_MALFORMED;
   }
 
-  
-
-
-
+  ctx->header_parsed = 1;   
   return BUN_OK;
 }
 
-bun_result_t bun_parse_assets(BunParseContext *ctx, const BunHeader *header) {
-  // TODO: implement asset record parsing and validation
+bun_result_t bun_parse_assets(BunParseContext *ctx) {
+  /**
+ * Parses all asset records from the asset table and validates each entry.
+ */
+  if (!ctx->header_parsed) {
+      return BUN_ERR_USAGE;
+    }
 
-  fseek(ctx->file, ctx->header.asset_table_offset, SEEK_SET);
+  // move file pointer to start of asset table
+  if (fseek(ctx->file, ctx->header.asset_table_offset, SEEK_SET) != 0) {
+    return BUN_ERR_IO;
+  }
 
-  ctx->records = malloc(sizeof(BunAssetRecord) * ctx->header.asset_count);
+  // zero-check (safe edge case handling)
+  if (ctx->header.asset_count == 0) {
+    ctx->records = NULL;
+    ctx->record_count = 0;
+    return BUN_OK;
+  }
+
+  // allocate array for all asset records
+  ctx->record_count = ctx->header.asset_count;
+  if (ctx->record_count > SIZE_MAX / sizeof(BunAssetRecord)) {   
+    return BUN_ERR_NOMEM;
+  }
+  ctx->records = malloc(sizeof(BunAssetRecord) * ctx->record_count);
   if (!ctx->records) {
     return BUN_ERR_NOMEM;
   }
 
-  ctx->record_count = ctx->header.asset_count;
-
-  for (u32 i = 0; i < ctx->header.asset_count; i++) {
+  // parse and validate all records
+  for (u32 i = 0; i < ctx->record_count; i++) {
     u8 buf[BUN_ASSET_RECORD_SIZE];
 
-    if (fread(buf, 1, BUN_ASSET_RECORD_SIZE, ctx->file) != BUN_ASSET_RECORD_SIZE) {
+    // read fixed-size asset record (48 bytes)
+    size_t n = fread(buf, 1, BUN_ASSET_RECORD_SIZE, ctx->file);
+    if (n != BUN_ASSET_RECORD_SIZE) {
         bun_add_violation(ctx, "asset %u: incomplete record", i);
+
+        // cleanup on failure to avoid memory leaks
+        free(ctx->records);
+        ctx->records = NULL;
+        ctx->record_count = 0;
+
         return BUN_MALFORMED;
     }
 
     BunAssetRecord *r = &ctx->records[i];
-    r->name_offset = read_u32_le(buf, 0);
-    r->name_length = read_u32_le(buf, 4);
 
-    r->data_offset = read_u64_le(buf, 8);
-    r->data_size = read_u64_le(buf, 16);
+    parse_record(r, buf);
 
-    r->uncompressed_size = read_u64_le(buf, 24);
-
-    r->compression = read_u32_le(buf, 32);
-    r->type = read_u32_le(buf, 36);
-
-    r->checksum = read_u32_le(buf, 40);
-    r->flags = read_u32_le(buf, 44);
-
+    // validate record against specification rules
     bun_result_t res = validate_record(ctx, i, r);
-      if (res != BUN_OK) {
-          return res;
+    if (res != BUN_OK) {
+      // cleanup on failure to avoid memory leaks
+      free(ctx->records);
+      ctx->records = NULL;
+      ctx->record_count = 0;
+
+      return res;
     }
-
   }
-
   return BUN_OK;
 }
 

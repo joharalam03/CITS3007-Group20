@@ -11,7 +11,7 @@
 
 typedef enum {
     BUN_OK          = 0,
-    BUN_MALFORMED   = 1,
+    BUN_MALFORMED   = 1, 
     BUN_UNSUPPORTED = 2,
     BUN_ERR_IO      = 3,   /* I/O error or file not found */
     BUN_ERR_USAGE   = 4,   /* NEW: wrong number of arguments */
