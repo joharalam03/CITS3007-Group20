@@ -37,6 +37,72 @@ static u64 read_u64_le(const u8 *buf, size_t offset) {
 
 // suggested function call for bun_validate_rle
 static bun_result_t bun_validate_rle(BunParseContext *ctx, u32 i, const BunAssetRecord *r);
+static bun_result_t bun_validate_rle(BunParseContext *ctx, u32 i, const BunAssetRecord *r) {
+  // data_size needs to be even since each RLE pair is 2 bytes
+  if ((r->data_size % 2u) != 0u) {
+      bun_add_violation(ctx, "asset %u: RLE data_size %llu is not even", i, (unsigned long long)r->data_size);
+      return BUN_MALFORMED;
+  }
+
+  u64 abs_data_offset = ctx->header.data_section_offset + r->data_offset;
+
+  // overflow check
+  if (abs_data_offset < ctx->header.data_section_offset) {
+      bun_add_violation(ctx, "asset %u: data offset overflow", i);
+      return BUN_MALFORMED;
+  }
+
+  if (fseek(ctx->file, (long)abs_data_offset, SEEK_SET) != 0) {
+      return BUN_ERR_IO;
+  }
+
+  // read in small chunks so we dont load the whole thing into memory
+  u8 buf[4096];
+  u64 remaining = r->data_size;
+  u64 actual_uncompressed = 0;
+
+  while (remaining > 0) {
+      size_t chunk_size = sizeof(buf);
+      if (remaining < (u64)chunk_size)
+          chunk_size = (size_t)remaining;
+
+      size_t got = fread(buf, 1, chunk_size, ctx->file);
+      if (got != chunk_size) {
+          bun_add_violation(ctx, "asset %u: truncated RLE data", i);
+          return BUN_MALFORMED;
+      }
+
+      for (size_t j = 0; j < chunk_size; j += 2) {
+          u8 count = buf[j];
+          // count of 0 doesnt make sense
+          if (count == 0) {
+              bun_add_violation(ctx, "asset %u: zero count in RLE pair", i);
+              return BUN_MALFORMED;
+          }
+
+          // make sure we dont overflow when accumulating
+          if (actual_uncompressed > UINT64_MAX - (u64)count) {
+              bun_add_violation(ctx, "asset %u: uncompressed size overflow", i);
+              return BUN_MALFORMED;
+          }
+          actual_uncompressed += count;
+      }
+
+      remaining -= (u64)chunk_size;
+  }
+
+  // final check - does the total match what the header said
+  if (actual_uncompressed != r->uncompressed_size) {
+      bun_add_violation(ctx, "asset %u: RLE uncompressed size mismatch (got %llu, expected %llu)",
+          i,
+          (unsigned long long)actual_uncompressed,
+          (unsigned long long)r->uncompressed_size);
+      return BUN_MALFORMED;
+  }
+
+  return BUN_OK;
+}
+
 
 /**
  * Decode a raw 48-byte buffer into a BunAssetRecord.
