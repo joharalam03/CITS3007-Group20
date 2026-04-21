@@ -160,41 +160,7 @@ bun_result_t bun_close(BunParseContext *ctx);
  * Example:
  *   bun_add_violation(ctx, "asset %u: bad name length %u", i, len);
  */
-int bun_add_violation(BunParseContext *ctx, const char *fmt, ...){
-    // If array is full then grow
-    if (ctx->violation_count == ctx->violation_capacity) {
-        size_t capacity;
-
-        if (ctx->violation_capacity == 0) {
-            capacity = 8;
-        } else {
-            capacity = ctx->violation_capacity * 2;    // Grow using array pattern
-        }
-
-        // Allocate size for msg
-        BunViolation *msg = realloc (ctx->violations, capacity);
-
-        // If there is no memory
-        if (msg == NULL) {
-            return -1;
-        }
-
-        ctx->violations = msg;
-        ctx->violation_capacity = capacity;
-
-    }
-
-    // Move msg to next empty slot
-    va_list args;
-    va_start(args, fmt);
-
-    vsnprintf(ctx->violations[ctx->violation_count].message, BUN_VIOLATION_MAX, fmt, args);
-    va_end(args);
-
-    ctx->violation_count++;
-    return 0;
-
-}
+int bun_add_violation(BunParseContext *ctx, const char *fmt, ...);
 
 /**
  * Free any heap memory owned by ctx (records array, violations array).
@@ -202,5 +168,7 @@ int bun_add_violation(BunParseContext *ctx, const char *fmt, ...){
  * Does not close the file -- call bun_close for that.
  */
 void bun_ctx_free(BunParseContext *ctx);
+
+void bun_print_summary(const BunParseContext *ctx, FILE *out);
 
 #endif // BUN_H

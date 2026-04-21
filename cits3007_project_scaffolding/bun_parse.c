@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdarg.h>
 
 #include "bun.h"
 
@@ -43,7 +44,7 @@ bun_result_t bun_open(const char *path, BunParseContext *ctx) {
   return BUN_OK;
 }
 
-bun_result_t bun_parse_header(BunParseContext *ctx, BunHeader *header) {
+bun_result_t bun_parse_header(BunParseContext *ctx) {
   u8 buf[BUN_HEADER_SIZE];
 
   // our file is far too short, and cannot be valid!
@@ -64,14 +65,10 @@ bun_result_t bun_parse_header(BunParseContext *ctx, BunHeader *header) {
   // TODO: validate fields and return BUN_MALFORMED or BUN_UNSUPPORTED
   // as required by the spec. The magic check is a good place to start.
 
-  if (header->magic != BUN_MAGIC) {
-    return BUN_MALFORMED;
-  }
-
   return BUN_OK;
 }
 
-bun_result_t bun_parse_assets(BunParseContext *ctx, const BunHeader *header) {
+bun_result_t bun_parse_assets(BunParseContext *ctx) {
 
   // TODO: implement asset record parsing and validation
 
@@ -88,4 +85,56 @@ bun_result_t bun_close(BunParseContext *ctx) {
     ctx->file = NULL;
     return BUN_OK;
   }
+}
+
+int bun_add_violation(BunParseContext *ctx, const char *fmt, ...){
+    // If array is full then grow
+    if (ctx->violation_count == ctx->violation_capacity) {
+        size_t capacity;
+
+        if (ctx->violation_capacity == 0) {
+            capacity = 8;
+        } else {
+            capacity = ctx->violation_capacity * 2;    // Grow using array pattern
+        }
+
+        // Allocate size for violations arr
+        BunViolation *new_buf = realloc (ctx->violations, capacity * sizeof(BunViolation));
+
+        // If there is no memory
+        if (new_buf == NULL) {
+            return -1;
+        }
+
+        ctx->violations = new_buf;
+        ctx->violation_capacity = capacity;
+
+    }
+
+    // Move to next empty slot
+    va_list args;
+    va_start(args, fmt);
+
+    vsnprintf(ctx->violations[ctx->violation_count].message, BUN_VIOLATION_MAX, fmt, args);
+    va_end(args);
+
+    ctx->violation_count++;
+    return 0;
+
+}
+
+void bun_ctx_free(BunParseContext *ctx) {
+  // Free mem0ry
+    free(ctx->records);
+    free(ctx->violations);
+    ctx->records            = NULL;
+    ctx->violations         = NULL;
+    ctx->record_count       = 0;
+    ctx->violation_count    = 0;
+    ctx->violation_capacity = 0;
+}
+
+void bun_print_summary(const BunParseContext *ctx, FILE *out) {
+    (void)ctx;
+    fprintf(out, "(bun_print_summary not yet implemented)\n");
 }
