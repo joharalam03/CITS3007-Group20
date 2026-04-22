@@ -137,7 +137,7 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
   int name_valid = 1;
 
   if (name_length > UINT64_MAX - name_offset) {
-      bun_add_violation(ctx, "asset %u: name offset overflow", i);
+      bun_add_violation(ctx, "asset %u: name range overflow", i);
       result =  BUN_MALFORMED;
       name_valid = 0;
   }
@@ -152,7 +152,7 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
 
   u64 abs_name_offset = ctx->header.string_table_offset + name_offset;
   if (abs_name_offset < ctx->header.string_table_offset) {
-      bun_add_violation(ctx, "asset %u: name offset overflow", i);
+      bun_add_violation(ctx, "asset %u: absolute name offset overflow", i);
       result = BUN_MALFORMED;
       name_valid = 0;
   }
@@ -161,7 +161,7 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
     bun_add_violation(ctx, "asset %u: name exceeds file bounds", i);
     name_valid = 0;
     result = BUN_MALFORMED;
-}
+  }
 
   if (name_valid) {
     if (fseek(ctx->file, (long)abs_name_offset, SEEK_SET) != 0) {
@@ -197,13 +197,25 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
   u64 data_offset = r->data_offset;         
   u64 data_size = r->data_size;              
   if (data_size > UINT64_MAX - data_offset) {
-      bun_add_violation(ctx, "asset %u: data offset overflow", i);
+      bun_add_violation(ctx, "asset %u: data range overflow", i);
       result = BUN_MALFORMED;
   }
   u64 data_end = data_offset + data_size;
 
   if (data_end > ctx->header.data_section_size) {
       bun_add_violation(ctx, "asset %u: data out of bounds", i);
+      result = BUN_MALFORMED;
+  }
+
+  u64 abs_data_offset = ctx->header.data_section_offset + data_offset;
+  if (abs_data_offset < ctx->header.data_section_offset) {
+      bun_add_violation(ctx, "asset %u: absolute data offset overflow", i);
+      result = BUN_MALFORMED;
+  }
+  if (data_size > UINT64_MAX - abs_data_offset ||
+      abs_data_offset + data_size > (u64)ctx->file_size) {
+
+      bun_add_violation(ctx, "asset %u: data exceeds file size", i);
       result = BUN_MALFORMED;
   }
 
