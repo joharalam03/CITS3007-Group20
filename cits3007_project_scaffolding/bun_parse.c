@@ -34,8 +34,59 @@ static u64 read_u64_le(const u8 *buf, size_t offset) {
 }
 
 
-// suggested function call for bun_validate_rle
-static bun_result_t bun_validate_rle(BunParseContext *ctx, u32 i, const BunAssetRecord *r);
+static int bun_add_violation(BunParseContext *ctx, const char *fmt, ...){
+    // If array is full then grow
+    if (ctx->violation_count == ctx->violation_capacity) {
+        size_t capacity;
+
+        if (ctx->violation_capacity == 0) {
+            capacity = 8;
+        } else {
+            capacity = ctx->violation_capacity * 2;    // Grow using array pattern
+        }
+
+        // Allocate size for violations arr
+        BunViolation *new_buf = realloc (ctx->violations, capacity * sizeof(BunViolation));
+
+        // If there is no memory
+        if (new_buf == NULL) {
+            return -1;
+        }
+
+        ctx->violations = new_buf;
+        ctx->violation_capacity = capacity;
+
+    }
+
+    // Move to next empty slot
+    va_list args;
+    va_start(args, fmt);
+
+    vsnprintf(ctx->violations[ctx->violation_count].message, BUN_VIOLATION_MAX, fmt, args);
+    va_end(args);
+
+    ctx->violation_count++;
+    return 0;
+
+}
+
+static void bun_ctx_free(BunParseContext *ctx) {
+  // Free mem0ry
+    free(ctx->records);
+    free(ctx->violations);
+    ctx->records            = NULL;
+    ctx->violations         = NULL;
+    ctx->record_count       = 0;
+    ctx->violation_count    = 0;
+    ctx->violation_capacity = 0;
+}
+
+static void bun_print_summary(const BunParseContext *ctx, FILE *out) {
+    (void)ctx;
+    fprintf(out, "(bun_print_summary not yet implemented)\n");
+}
+
+
 static bun_result_t bun_validate_rle(BunParseContext *ctx, u32 i, const BunAssetRecord *r) {
   // data_size needs to be even since each RLE pair is 2 bytes
   if ((r->data_size % 2u) != 0u) {
@@ -502,56 +553,4 @@ bun_result_t bun_close(BunParseContext *ctx) {
     ctx->file = NULL;
     return BUN_OK;
   }
-}
-
-int bun_add_violation(BunParseContext *ctx, const char *fmt, ...){
-    // If array is full then grow
-    if (ctx->violation_count == ctx->violation_capacity) {
-        size_t capacity;
-
-        if (ctx->violation_capacity == 0) {
-            capacity = 8;
-        } else {
-            capacity = ctx->violation_capacity * 2;    // Grow using array pattern
-        }
-
-        // Allocate size for violations arr
-        BunViolation *new_buf = realloc (ctx->violations, capacity * sizeof(BunViolation));
-
-        // If there is no memory
-        if (new_buf == NULL) {
-            return -1;
-        }
-
-        ctx->violations = new_buf;
-        ctx->violation_capacity = capacity;
-
-    }
-
-    // Move to next empty slot
-    va_list args;
-    va_start(args, fmt);
-
-    vsnprintf(ctx->violations[ctx->violation_count].message, BUN_VIOLATION_MAX, fmt, args);
-    va_end(args);
-
-    ctx->violation_count++;
-    return 0;
-
-}
-
-void bun_ctx_free(BunParseContext *ctx) {
-  // Free mem0ry
-    free(ctx->records);
-    free(ctx->violations);
-    ctx->records            = NULL;
-    ctx->violations         = NULL;
-    ctx->record_count       = 0;
-    ctx->violation_count    = 0;
-    ctx->violation_capacity = 0;
-}
-
-void bun_print_summary(const BunParseContext *ctx, FILE *out) {
-    (void)ctx;
-    fprintf(out, "(bun_print_summary not yet implemented)\n");
 }
