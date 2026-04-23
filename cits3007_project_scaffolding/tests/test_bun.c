@@ -43,7 +43,6 @@ static const char *fixture(const char *filename) {
 
 START_TEST(test_valid_minimal) {
     BunParseContext ctx = {0};
-    BunHeader header    = {0};
 
     bun_result_t r = bun_open(fixture("valid/01-empty.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
@@ -60,7 +59,6 @@ END_TEST
 
 START_TEST(test_bad_magic) {
     BunParseContext ctx = {0};
-    BunHeader header    = {0};
 
     bun_result_t r = bun_open(fixture("invalid/01-bad-magic.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
@@ -74,7 +72,6 @@ END_TEST
 
 START_TEST(test_unsupported_version) {
     BunParseContext ctx = {0};
-    BunHeader header    = {0};
 
     bun_result_t r = bun_open(fixture("invalid/02-bad-version.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
@@ -87,7 +84,6 @@ END_TEST
 
 START_TEST(test_valid_alt_empty) {
     BunParseContext ctx = {0};
-    BunHeader header    = {0};
 
     bun_result_t r = bun_open(fixture("valid/02-alt-empty.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
@@ -104,7 +100,6 @@ END_TEST
 
 START_TEST(test_valid_one_asset_header) {
     BunParseContext ctx = {0};
-    BunHeader header    = {0};
 
     bun_result_t r = bun_open(fixture("valid/03-one-asset.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
@@ -120,7 +115,6 @@ END_TEST
 
 START_TEST(test_bad_offset_alignment) {
     BunParseContext ctx = {0};
-    BunHeader header    = {0};
 
     bun_result_t r = bun_open(fixture("invalid/03-bad-offset-alignment.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
