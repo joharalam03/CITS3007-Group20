@@ -34,3 +34,12 @@
   - found no function definition in any .c file
 - Conclusion:
   - the current blocker is a missing implementation of bun_add_violation, not the test fixture setup
+  
+
+- Tool: cppcheck
+- Environment: CITS3007 SDE VM
+- Command: make lint
+- Result: completed successfully
+- Findings: no actionable cppcheck warnings were reported in the output for bun_parse.c, main.c, or tests/test_bun.c
+- Action Taken: recorded successful static-analysis run; lint target is now available for repeated use during development
+- Notes: cppcheck had to be installed in the VM before the lint target could run
