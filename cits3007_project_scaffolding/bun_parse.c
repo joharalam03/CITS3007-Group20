@@ -187,7 +187,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
   return BUN_OK;
 }
 
-bun_result_t bun_parse_assets(BunParseContext *ctx, const BunHeader *header) {
+bun_result_t bun_parse_assets(BunParseContext *ctx) {
 
   // TODO: implement asset record parsing and validation
 
