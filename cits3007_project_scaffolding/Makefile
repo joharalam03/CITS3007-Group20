@@ -14,7 +14,7 @@ LIB     = bun_parse.c
 MAIN    = main.c
 TEST    = tests/test_bun.c
 
-.PHONY: all test test-asan clean
+.PHONY: all test test-asan lint clean
 
 all: bun_parser
 
@@ -31,6 +31,9 @@ tests/test_runner: $(TEST) $(LIB)
 
 test-asan: CFLAGS += -fsanitize=address,undefined -fno-omit-frame-pointer -g
 test-asan: clean test
+
+lint:
+	cppcheck --enable=all --suppress=missingIncludeSystem .
 
 clean:
 	-rm bun_parser tests/test_runner *.o
