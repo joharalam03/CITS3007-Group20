@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stddef.h>   // NEW: for size_t
+#include <stdarg.h>
+#include <stdlib.h>
 
 //
 // Result codes (per BUN spec section 2)
@@ -166,5 +168,7 @@ int bun_add_violation(BunParseContext *ctx, const char *fmt, ...);
  * Does not close the file -- call bun_close for that.
  */
 void bun_ctx_free(BunParseContext *ctx);
+
+void bun_print_summary(const BunParseContext *ctx, FILE *out);
 
 #endif // BUN_H
