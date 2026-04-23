@@ -78,7 +78,7 @@ START_TEST(test_unsupported_version) {
 
     r = bun_parse_header(&ctx);
     ck_assert_int_eq(r, BUN_UNSUPPORTED);
-chkn_close(&ctx);
+    bun_close(&ctx);
 }
 END_TEST
 
