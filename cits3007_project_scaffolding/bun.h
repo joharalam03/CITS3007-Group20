@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stddef.h>   // NEW: for size_t
+#include <stdarg.h>
+#include <stdlib.h>
 
 //
 // Result codes (per BUN spec section 2)
@@ -11,7 +13,7 @@
 
 typedef enum {
     BUN_OK          = 0,
-    BUN_MALFORMED   = 1,
+    BUN_MALFORMED   = 1, 
     BUN_UNSUPPORTED = 2,
     BUN_ERR_IO      = 3,   /* I/O error or file not found */
     BUN_ERR_USAGE   = 4,   /* NEW: wrong number of arguments */
@@ -166,5 +168,7 @@ int bun_add_violation(BunParseContext *ctx, const char *fmt, ...);
  * Does not close the file -- call bun_close for that.
  */
 void bun_ctx_free(BunParseContext *ctx);
+
+void bun_print_summary(const BunParseContext *ctx, FILE *out);
 
 #endif // BUN_H
