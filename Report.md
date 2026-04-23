@@ -8,7 +8,7 @@
 
 1. **Name: Zawad Huda**  
    **Student Number: 23102177**  
-   **GitHub Username:**  
+   **GitHub Username: zawadhuda**  
 
 2. **Name: Johar Khan**  
    **Student Number: 24331036**  
@@ -20,7 +20,7 @@
 
 4. **Name: Mineth Perera**  
    **Student Number: 23284373**  
-   **GitHub Username:**  
+   **GitHub Username: ethnimp **  
 
 5. **Name: Synne Wikborg**  
    **Student Number: 24282424**  
