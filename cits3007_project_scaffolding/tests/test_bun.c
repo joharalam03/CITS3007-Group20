@@ -49,9 +49,9 @@ START_TEST(test_valid_minimal) {
 
     r = bun_parse_header(&ctx);
     ck_assert_int_eq(r, BUN_OK);
-    ck_assert_uint_eq(header.magic, BUN_MAGIC);
-    ck_assert_uint_eq(header.version_major, 1);
-    ck_assert_uint_eq(header.version_minor, 0);
+    ck_assert_uint_eq(ctx.header.magic, BUN_MAGIC);
+    ck_assert_uint_eq(ctx.header.version_major, 1);
+    ck_assert_uint_eq(ctx.header.version_minor, 0);
 
     bun_close(&ctx);
 }
@@ -90,9 +90,9 @@ START_TEST(test_valid_alt_empty) {
 
     r = bun_parse_header(&ctx);
     ck_assert_int_eq(r, BUN_OK);
-    ck_assert_uint_eq(header.magic, BUN_MAGIC);
-    ck_assert_uint_eq(header.version_major, 1);
-    ck_assert_uint_eq(header.version_minor, 0);
+    ck_assert_uint_eq(ctx.header.magic, BUN_MAGIC);
+    ck_assert_uint_eq(ctx.header.version_major, 1);
+    ck_assert_uint_eq(ctx.header.version_minor, 0);
 
     bun_close(&ctx);
 }
@@ -106,8 +106,8 @@ START_TEST(test_valid_one_asset_header) {
 
     r = bun_parse_header(&ctx);
     ck_assert_int_eq(r, BUN_OK);
-    ck_assert_uint_eq(header.magic, BUN_MAGIC);
-    ck_assert_uint_eq(header.asset_count, 1);
+    ck_assert_uint_eq(ctx.header.magic, BUN_MAGIC);
+    ck_assert_uint_eq(ctx.header.asset_count, 1);
 
     bun_close(&ctx);
 }
