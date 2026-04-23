@@ -14,3 +14,7 @@
 - Next action:
   - pull the latest group changes
   - rerun make test after bun_add_violation is available
+
+
+- Change: added `test-asan` target to Makefile
+- Purpose: standardise running ASan/UBSan through `make test-asan`
