@@ -420,8 +420,6 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
 }
 
 bun_result_t bun_parse_assets(BunParseContext *ctx) {
-<<<<<<< HEAD
-=======
   /**
  * Parses all asset records from the asset table and validates each entry.
  * Accumulates violations.
@@ -429,7 +427,6 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
   if (!ctx->header_parsed) {
       return BUN_ERR_USAGE;
     }
->>>>>>> origin/main
 
   // move file pointer to start of asset table
   if (fseek(ctx->file, ctx->header.asset_table_offset, SEEK_SET) != 0) {
