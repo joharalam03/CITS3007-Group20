@@ -16,8 +16,8 @@ typedef enum {
     BUN_MALFORMED   = 1, 
     BUN_UNSUPPORTED = 2,
     BUN_ERR_IO      = 3,   /* I/O error or file not found */
-    BUN_ERR_USAGE   = 4,   /* NEW: wrong number of arguments */
-    BUN_ERR_NOMEM   = 5,   /* NEW: memory allocation failed */
+    BUN_ERR_USAGE   = 4,   /* wrong number of arguments */
+    BUN_ERR_NOMEM   = 5,   /* memory allocation failed */
 } bun_result_t;
 
 //
@@ -73,9 +73,6 @@ typedef struct {
 #define BUN_HEADER_SIZE       60
 #define BUN_ASSET_RECORD_SIZE 48
 
-//
-// NEW: Violation messages
-//
 // A violation is a single error message the parser produces when it spots
 // something wrong in the .bun file. The parser stores violations in the
 // BunParseContext as it goes; main.c prints them to stderr at the end.
@@ -87,9 +84,7 @@ typedef struct {
     char message[BUN_VIOLATION_MAX];
 } BunViolation;
 
-//
-// CHANGED: Parse context
-//
+
 // A struct to store the parser's state and results. Created empty by main.c
 // and passed into each parser function. Fields filled in as parsing proceeds.
 //
@@ -148,27 +143,5 @@ bun_result_t bun_parse_assets(BunParseContext *ctx);
  */
 bun_result_t bun_close(BunParseContext *ctx);
 
-//
-// NEW: helpers used by the parser to record problems and clean up.
-//
-
-/**
- * Append a printf-style formatted message to ctx->violations.
- * Grows the violations array as needed.
- * Returns 0 on success, non-zero on allocation failure.
- *
- * Example:
- *   bun_add_violation(ctx, "asset %u: bad name length %u", i, len);
- */
-int bun_add_violation(BunParseContext *ctx, const char *fmt, ...);
-
-/**
- * Free any heap memory owned by ctx (records array, violations array).
- * Safe to call on a zero-initialised or partially-populated context.
- * Does not close the file -- call bun_close for that.
- */
-void bun_ctx_free(BunParseContext *ctx);
-
-void bun_print_summary(const BunParseContext *ctx, FILE *out);
 
 #endif // BUN_H
