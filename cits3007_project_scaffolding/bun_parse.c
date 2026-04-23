@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdarg.h>
+#include <stdarg.h>
 
 #include "bun.h"
 
@@ -348,6 +349,8 @@ bun_result_t bun_open(const char *path, BunParseContext *ctx) {
 
 bun_result_t bun_parse_header(BunParseContext *ctx) {
   u8 buf[BUN_HEADER_SIZE];
+  bun_result_t result = BUN_OK;
+
   // our file is far too short, and cannot be valid!
   // (query: how do we let `main` know that "file was too short"
   // was the exact problem? Where can we put details about the
@@ -377,38 +380,62 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
   h->reserved = read_u64_le(buf, 52);
 
   if (h->magic != BUN_MAGIC) {
-    bun_add_violation(ctx, "invalid magic value");
-    return BUN_MALFORMED;
+    if(bun_add_violation(ctx, "Invalid magic value") != 0){
+      return BUN_ERR_NOMEM;
+    }
+    result = BUN_MALFORMED;
   }
 
   if (h->version_major != 1 || h->version_minor != 0){
-    bun_add_violation(ctx, "Version %d.%d unsupported", h->version_major, h->version_minor);
-    return BUN_UNSUPPORTED;
+    if (bun_add_violation(ctx, "Version %d.%d unsupported", h->version_major, h->version_minor) != 0){
+      return BUN_ERR_NOMEM;
+    }
+    result = BUN_UNSUPPORTED;
   }
 
   if ((h->asset_table_offset & 3) != 0){
-    bun_add_violation(ctx, "Asset table offset not aligned");
-    return BUN_MALFORMED;
+    if (bun_add_violation(ctx, "Asset table offset not aligned") != 0){
+      return BUN_ERR_NOMEM;
+    }
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
   if ((h->string_table_offset & 3) != 0){
-    bun_add_violation(ctx, "String table offset not aligned");
-    return BUN_MALFORMED;
+    if (bun_add_violation(ctx, "String table offset not aligned") != 0){
+      return BUN_ERR_NOMEM;
+    }
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
   if ((h->string_table_size & 3) != 0){
-    bun_add_violation(ctx, "String table size not aligned");
-    return BUN_MALFORMED;
+    if (bun_add_violation(ctx, "String table size not aligned") != 0){
+        return BUN_ERR_NOMEM;
+    }
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
   if ((h->data_section_offset & 3) != 0){
-    bun_add_violation(ctx, "Data section offset not aligned");
-    return BUN_MALFORMED;
+    if (bun_add_violation(ctx, "Data section offest not aligned") != 0){
+        return BUN_ERR_NOMEM;
+    }
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
   if ((h->data_section_size & 3) != 0){
-    bun_add_violation(ctx, "Data section size not aligned");
-    return BUN_MALFORMED;
+     if (bun_add_violation(ctx, "Data section size not aligned") != 0){
+        return BUN_ERR_NOMEM;
+    }
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
   u64 asset_table_size = (u64)h->asset_count * BUN_ASSET_RECORD_SIZE;
@@ -416,58 +443,98 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
   u64 asset_end = asset_start + asset_table_size;
 
   if (asset_end < asset_start){
-    bun_add_violation(ctx, "Asset table overflow");
-    return BUN_MALFORMED;
+    if (bun_add_violation(ctx, "Asset table range overflow") != 0){
+        return BUN_ERR_NOMEM;
+    }
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
-  if (asset_end > (u64) ctx->file_size){
-    bun_add_violation(ctx, "Asset table exceeds file size");
-    return BUN_MALFORMED;
+  if (asset_end > ctx->file_size){
+     if (bun_add_violation(ctx, "Asset table exceeds file size") != 0){
+        return BUN_ERR_NOMEM;
+    }
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
   u64 string_table_start = h->string_table_offset;
   u64 string_table_end = string_table_start + h->string_table_size;
 
   if (string_table_end < string_table_start){
-    bun_add_violation(ctx, "String table overflow");
-    return BUN_MALFORMED;
+     if (bun_add_violation(ctx, "String table range overflow") != 0){
+        return BUN_ERR_NOMEM;
+    }
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
-  if (string_table_end > (u64) ctx->file_size){
-    bun_add_violation(ctx, "String table exceeds file size");
-    return BUN_MALFORMED;
+  if (string_table_end > ctx->file_size){
+     if (bun_add_violation(ctx, "String table exceeds file size") != 0){
+        return BUN_ERR_NOMEM;
+    }
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
   u64 data_section_start = h->data_section_offset;
   u64 data_section_end = data_section_start + h->data_section_size;
 
   if (data_section_end < data_section_start){
-    bun_add_violation(ctx, "Data section overflow");
-    return BUN_MALFORMED;
+     if (bun_add_violation(ctx, "Data section range overflow") != 0){
+        return BUN_ERR_NOMEM;
+    }
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
-  if (data_section_end > (u64) ctx->file_size){
-    bun_add_violation(ctx, "Data section exceeds file size");
-    return BUN_MALFORMED;
+  if (data_section_end > ctx->file_size){
+    if (bun_add_violation(ctx, "Data section exceeds file size") != 0){
+        return BUN_ERR_NOMEM;
+    }
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
   if (!(asset_end <= string_table_start || string_table_end <= asset_start)){
-    bun_add_violation(ctx, "Asset and String overlap");
-    return BUN_MALFORMED;
+   if (bun_add_violation(ctx, "Asset table overlaps string table") != 0){
+        return BUN_ERR_NOMEM;
+    }
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
-   if (!(string_table_end <= data_section_start || data_section_end <= string_table_start)){
-    bun_add_violation(ctx, "String and Data overlap");
-    return BUN_MALFORMED;
+  if (!(string_table_end <= data_section_start || data_section_end <= string_table_start)){
+    if (bun_add_violation(ctx, "String table overlaps data section") != 0){
+        return BUN_ERR_NOMEM;
+    }
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
-   if (!(asset_end <= data_section_start || data_section_end <= asset_start)){
-    bun_add_violation(ctx, "Asset and Data overlap");
-    return BUN_MALFORMED;
+  if (!(asset_end <= data_section_start || data_section_end <= asset_start)){
+    if (bun_add_violation(ctx, "Asset table overlaps data section") != 0){
+        return BUN_ERR_NOMEM;
+    }
+   
+    if (result == BUN_OK) {
+        result = BUN_MALFORMED;
+    }
   }
 
-  ctx->header_parsed = 1;   
-  return BUN_OK;
+  if (result == BUN_OK) {
+    ctx->header_parsed = 1;
+  }
+
+  return result;
 }
 
 bun_result_t bun_parse_assets(BunParseContext *ctx) {
