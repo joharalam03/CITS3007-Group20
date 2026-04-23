@@ -18,3 +18,19 @@
 
 - Change: added `test-asan` target to Makefile
 - Purpose: standardise running ASan/UBSan through `make test-asan`
+
+
+- Tool: make test
+- Environment: CITS3007 SDE VM
+- Command: make test
+- Result: link-stage failure
+- Findings:
+  - bun_parse_header produced compiler warnings for signed/unsigned comparisons
+  - bun_parse_assets produced an unused-parameter warning
+  - linker failed with undefined references to bun_add_violation
+- Follow-up investigation:
+  - searched the project for bun_add_violation using grep
+  - found declarations/calls in bun.h and bun_parse.c
+  - found no function definition in any .c file
+- Conclusion:
+  - the current blocker is a missing implementation of bun_add_violation, not the test fixture setup
