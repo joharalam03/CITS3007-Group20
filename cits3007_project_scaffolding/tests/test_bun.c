@@ -253,6 +253,85 @@ START_TEST(test_second_asset_empty_name) {
 }
 END_TEST
 
+START_TEST(test_asset_name_oob) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("invalid/12-asset-name-oob.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_MALFORMED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_asset_empty_name) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("invalid/13-asset-empty-name.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_MALFORMED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_rle_zero_count) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("invalid/14-rle-zero-count.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_MALFORMED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_rle_bomb) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("invalid/15-rle-bomb.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_MALFORMED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_rle_truncated) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("invalid/16-rle-truncated.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_MALFORMED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
 // Assemble a test suite from our tests
 
 static Suite *bun_suite(void) {
@@ -278,6 +357,11 @@ static Suite *bun_suite(void) {
     tcase_add_test(tc_assets, test_asset_name_past_string_table);
     tcase_add_test(tc_assets, test_asset_name_nonprintable);
     tcase_add_test(tc_assets, test_second_asset_empty_name);
+    tcase_add_test(tc_assets, test_asset_name_oob);
+    tcase_add_test(tc_assets, test_asset_empty_name);
+    tcase_add_test(tc_assets, test_rle_zero_count);
+    tcase_add_test(tc_assets, test_rle_bomb);
+    tcase_add_test(tc_assets, test_rle_truncated);
     suite_add_tcase(s, tc_assets);
 
     return s;
