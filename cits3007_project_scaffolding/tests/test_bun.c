@@ -332,6 +332,64 @@ START_TEST(test_rle_truncated) {
 }
 END_TEST
 
+START_TEST(test_valid_binary_asset) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("valid/04-binary-asset.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_valid_multi_assets_slack) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("valid/05-multi-assets-slack.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+
+    fprintf(stderr, "parse_assets returned: %d\n", r);
+    fprintf(stderr, "violation_count: %zu\n", ctx.violation_count);
+    for (size_t i = 0; i < ctx.violation_count; i++) {
+        fprintf(stderr, "violation[%zu]: %s\n", i, ctx.violations[i].message);
+    }
+
+    ck_assert_int_eq(r, BUN_OK);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_valid_rle_asset) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("valid/06-rle-valid.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
 // Assemble a test suite from our tests
 
 static Suite *bun_suite(void) {
@@ -362,6 +420,9 @@ static Suite *bun_suite(void) {
     tcase_add_test(tc_assets, test_rle_zero_count);
     tcase_add_test(tc_assets, test_rle_bomb);
     tcase_add_test(tc_assets, test_rle_truncated);
+    tcase_add_test(tc_assets, test_valid_binary_asset);
+    tcase_add_test(tc_assets, test_valid_multi_assets_slack);
+    tcase_add_test(tc_assets, test_valid_rle_asset);
     suite_add_tcase(s, tc_assets);
 
     return s;

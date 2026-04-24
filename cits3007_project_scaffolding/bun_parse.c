@@ -452,25 +452,32 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
 
   bun_result_t final_result = BUN_OK;
 
-  // parse and validate all records
+    // parse and validate all records
   for (u32 i = 0; i < ctx->record_count; i++) {
     u8 buf[BUN_ASSET_RECORD_SIZE];
 
-    // read fixed-size asset record (48 bytes)
+    u64 record_offset = ctx->header.asset_table_offset + (u64)i * BUN_ASSET_RECORD_SIZE;
+
+    if (fseek(ctx->file, (long)record_offset, SEEK_SET) != 0) {
+      free(ctx->records);
+      ctx->records = NULL;
+      ctx->record_count = 0;
+      return BUN_ERR_IO;
+    }
+
     size_t n = fread(buf, 1, BUN_ASSET_RECORD_SIZE, ctx->file);
     if (n != BUN_ASSET_RECORD_SIZE) {
-        bun_add_violation(ctx, "asset %u: incomplete record", i);
+      bun_add_violation(ctx, "asset %u: incomplete record", i);
 
-        // cleanup on failure to avoid memory leaks
-        free(ctx->records);
-        ctx->records = NULL;
-        ctx->record_count = 0;
+      free(ctx->records);
+      ctx->records = NULL;
+      ctx->record_count = 0;
 
-        return BUN_MALFORMED;
+      return BUN_MALFORMED;
     }
 
     BunAssetRecord *r = &ctx->records[i];
-
+    memset(r, 0, sizeof(*r));
     parse_record(r, buf);
 
     // validate record against specification rules
