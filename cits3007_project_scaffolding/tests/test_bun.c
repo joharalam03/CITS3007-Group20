@@ -54,6 +54,7 @@ START_TEST(test_valid_minimal) {
     ck_assert_uint_eq(ctx.header.version_minor, 0);
 
     bun_close(&ctx);
+    bun_ctx_free(&ctx);
 }
 END_TEST
 
@@ -67,6 +68,7 @@ START_TEST(test_bad_magic) {
     ck_assert_int_eq(r, BUN_MALFORMED);
 
     bun_close(&ctx);
+    bun_ctx_free(&ctx);
 }
 END_TEST
 
@@ -79,6 +81,7 @@ START_TEST(test_unsupported_version) {
     r = bun_parse_header(&ctx);
     ck_assert_int_eq(r, BUN_UNSUPPORTED);
     bun_close(&ctx);
+    bun_ctx_free(&ctx);
 }
 END_TEST
 
@@ -95,6 +98,7 @@ START_TEST(test_valid_alt_empty) {
     ck_assert_uint_eq(ctx.header.version_minor, 0);
 
     bun_close(&ctx);
+    bun_ctx_free(&ctx);
 }
 END_TEST
 
@@ -110,6 +114,7 @@ START_TEST(test_valid_one_asset_header) {
     ck_assert_uint_eq(ctx.header.asset_count, 1);
 
     bun_close(&ctx);
+    bun_ctx_free(&ctx);
 }
 END_TEST
 
@@ -123,6 +128,7 @@ START_TEST(test_bad_offset_alignment) {
     ck_assert_int_eq(r, BUN_MALFORMED);
 
     bun_close(&ctx);
+    bun_ctx_free(&ctx);
 }
 END_TEST
 
