@@ -160,6 +160,40 @@ START_TEST(test_overlapping_sections) {
 }
 END_TEST
 
+START_TEST(test_asset_name_past_string_table) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("invalid/06-asset-name-past-string-table.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_MALFORMED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_asset_name_nonprintable) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("invalid/07-asset-name-nonprintable.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_MALFORMED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
 // Assemble a test suite from our tests
 
 static Suite *bun_suite(void) {
@@ -178,7 +212,11 @@ static Suite *bun_suite(void) {
     suite_add_tcase(s, tc_header);
 
     // TODO: add further test cases and TCases (e.g. "assets", "compression")
-
+    TCase *tc_assets = tcase_create("asset-tests");
+    tcase_add_test(tc_assets, test_asset_name_past_string_table);
+    tcase_add_test(tc_assets, test_asset_name_nonprintable);
+    suite_add_tcase(s, tc_assets);
+    
     return s;
 }
 
