@@ -20,7 +20,7 @@
 
 4. **Name: Mineth Perera**  
    **Student Number: 23284373**  
-   **GitHub Username: ethnimp **  
+   **GitHub Username: ethnimp**  
 
 5. **Name: Synne Wikborg**  
    **Student Number: 24282424**  
