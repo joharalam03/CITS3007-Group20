@@ -420,7 +420,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
     return BUN_MALFORMED;
   }
 
-  if (asset_end > ctx->file_size){
+  if (asset_end > (u64) ctx->file_size){
     bun_add_violation(ctx, "Asset table exceeds file size");
     return BUN_MALFORMED;
   }
@@ -433,7 +433,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
     return BUN_MALFORMED;
   }
 
-  if (string_table_end > ctx->file_size){
+  if (string_table_end > (u64) ctx->file_size){
     bun_add_violation(ctx, "String table exceeds file size");
     return BUN_MALFORMED;
   }
@@ -446,7 +446,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
     return BUN_MALFORMED;
   }
 
-  if (data_section_end > ctx->file_size){
+  if (data_section_end > (u64) ctx->file_size){
     bun_add_violation(ctx, "Data section exceeds file size");
     return BUN_MALFORMED;
   }
@@ -493,8 +493,9 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
 
   // allocate array for all asset records
   ctx->record_count = ctx->header.asset_count;
-  if (ctx->record_count > SIZE_MAX / sizeof(BunAssetRecord)) {   
-    return BUN_ERR_NOMEM;
+  if (ctx->record_count > 1000000) {
+    bun_add_violation(ctx, "asset_count too large: %u", ctx->record_count);
+    return BUN_MALFORMED;
   }
   ctx->records = malloc(sizeof(BunAssetRecord) * ctx->record_count);
   if (!ctx->records) {
@@ -503,25 +504,32 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
 
   bun_result_t final_result = BUN_OK;
 
-  // parse and validate all records
+    // parse and validate all records
   for (u32 i = 0; i < ctx->record_count; i++) {
     u8 buf[BUN_ASSET_RECORD_SIZE];
 
-    // read fixed-size asset record (48 bytes)
+    u64 record_offset = ctx->header.asset_table_offset + (u64)i * BUN_ASSET_RECORD_SIZE;
+
+    if (fseek(ctx->file, (long)record_offset, SEEK_SET) != 0) {
+      free(ctx->records);
+      ctx->records = NULL;
+      ctx->record_count = 0;
+      return BUN_ERR_IO;
+    }
+
     size_t n = fread(buf, 1, BUN_ASSET_RECORD_SIZE, ctx->file);
     if (n != BUN_ASSET_RECORD_SIZE) {
-        bun_add_violation(ctx, "asset %u: incomplete record", i);
+      bun_add_violation(ctx, "asset %u: incomplete record", i);
 
-        // cleanup on failure to avoid memory leaks
-        free(ctx->records);
-        ctx->records = NULL;
-        ctx->record_count = 0;
+      free(ctx->records);
+      ctx->records = NULL;
+      ctx->record_count = 0;
 
-        return BUN_MALFORMED;
+      return BUN_MALFORMED;
     }
 
     BunAssetRecord *r = &ctx->records[i];
-
+    memset(r, 0, sizeof(*r));
     parse_record(r, buf);
 
     // validate record against specification rules
