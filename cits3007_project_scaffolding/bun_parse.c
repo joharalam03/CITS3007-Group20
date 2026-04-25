@@ -442,8 +442,9 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
 
   // allocate array for all asset records
   ctx->record_count = ctx->header.asset_count;
-  if (ctx->record_count > SIZE_MAX / sizeof(BunAssetRecord)) {   
-    return BUN_ERR_NOMEM;
+  if (ctx->record_count > 1000000) {
+    bun_add_violation(ctx, "asset_count too large: %u", ctx->record_count);
+    return BUN_MALFORMED;
   }
   ctx->records = malloc(sizeof(BunAssetRecord) * ctx->record_count);
   if (!ctx->records) {
