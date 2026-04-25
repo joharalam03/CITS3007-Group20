@@ -143,5 +143,7 @@ bun_result_t bun_parse_assets(BunParseContext *ctx);
  */
 bun_result_t bun_close(BunParseContext *ctx);
 
+void bun_print_summary(const BunParseContext *ctx, FILE *out);
+
 
 #endif // BUN_H
