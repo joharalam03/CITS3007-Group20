@@ -145,5 +145,6 @@ bun_result_t bun_close(BunParseContext *ctx);
 
 void bun_print_summary(const BunParseContext *ctx, FILE *out);
 
+void bun_ctx_free(BunParseContext *ctx);
 
 #endif // BUN_H
