@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include <stdarg.h>
+#include <stint.h>
 
 #include "bun.h"
 
@@ -527,6 +528,11 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
     }
     return BUN_MALFORMED;
   }
+
+  if (ctx->record_count > SIZE_MAX / sizeof(BunAssetRecord)) {
+    return BUN_ERR_NOMEM;
+  }
+
   ctx->records = malloc(sizeof(BunAssetRecord) * ctx->record_count);
   if (!ctx->records) {
     return BUN_ERR_NOMEM;
@@ -550,6 +556,9 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
     size_t n = fread(buf, 1, BUN_ASSET_RECORD_SIZE, ctx->file);
     if (n != BUN_ASSET_RECORD_SIZE) {
       if (bun_add_violation(ctx, "asset %u: incomplete record", i) != 0) {
+        free(ctx->records);
+        ctx->records = NULL;
+        ctx->record_count = 0;
         return BUN_ERR_NOMEM;
       }
 
