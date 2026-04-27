@@ -546,7 +546,7 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
 
     u64 record_offset = ctx->header.asset_table_offset + (u64)i * BUN_ASSET_RECORD_SIZE;
 
-    if (fseek(ctx->file, (long)record_offset, SEEK_SET) != 0) {
+    if (fseeko(ctx->file, (off_t)record_offset, SEEK_SET) != 0) {
       free(ctx->records);
       ctx->records = NULL;
       ctx->record_count = 0;
