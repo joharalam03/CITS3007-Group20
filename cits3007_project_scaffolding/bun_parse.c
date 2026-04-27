@@ -1,3 +1,6 @@
+#define _FILE_OFFSET_BITS 64
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5,6 +8,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <limits.h>
+#include <sys/types.h>
 
 #include "bun.h"
 
@@ -81,7 +85,7 @@ static int bun_add_violation(BunParseContext *ctx, const char *fmt, ...){
 
 }
 
-static void bun_ctx_free(BunParseContext *ctx) {
+void bun_ctx_free(BunParseContext *ctx) {
   // Free mem0ry
     free(ctx->records);
     free(ctx->violations);
@@ -91,12 +95,6 @@ static void bun_ctx_free(BunParseContext *ctx) {
     ctx->violation_count    = 0;
     ctx->violation_capacity = 0;
 }
-
-static void bun_print_summary(const BunParseContext *ctx, FILE *out) {
-    (void)ctx;
-    fprintf(out, "(bun_print_summary not yet implemented)\n");
-}
-
 
 static bun_result_t bun_validate_rle(BunParseContext *ctx, u32 i, const BunAssetRecord *r) {
   // data_size needs to be even since each RLE pair is 2 bytes
@@ -536,20 +534,12 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
     return BUN_MALFORMED;
   }
 
-  if (ctx->record_count > SIZE_MAX / sizeof(BunAssetRecord)) {
-    return BUN_ERR_NOMEM;
-  }
-
   ctx->records = malloc(sizeof(BunAssetRecord) * ctx->record_count);
   if (!ctx->records) {
     return BUN_ERR_NOMEM;
   }
 
   // buffer entire asset table to avoid repeated fseeko/fread
-  if (ctx->record_count > SIZE_MAX / BUN_ASSET_RECORD_SIZE) {
-    free(ctx->records);
-    return BUN_ERR_NOMEM;
-  }
   size_t table_size = (size_t)ctx->record_count * BUN_ASSET_RECORD_SIZE;
 
   u8 *table_buf = malloc(table_size);
