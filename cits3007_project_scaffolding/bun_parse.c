@@ -3,7 +3,8 @@
 #include <string.h>
 #include <assert.h>
 #include <stdarg.h>
-#include <stint.h>
+#include <stdint.h>
+#include <limits.h>
 
 #include "bun.h"
 
@@ -34,6 +35,15 @@ static u64 read_u64_le(const u8 *buf, size_t offset) {
      | (u64)buf[offset + 7] << 56;
 }
 
+static int safe_fseeko(FILE *stream, u64 offset, int whence)
+{
+    /* Ensure offset fits into off_t before casting */
+    if (offset > (u64)LLONG_MAX) {
+        return -1;
+    }
+
+    return fseeko(stream, (off_t)offset, whence);
+}
 
 static int bun_add_violation(BunParseContext *ctx, const char *fmt, ...){
     // If array is full then grow
@@ -222,9 +232,9 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
   }
 
   if (name_valid) {
-    if (fseek(ctx->file, (long)abs_name_offset, SEEK_SET) != 0) {
-        return BUN_ERR_IO; 
-    }
+    if (safe_fseeko(ctx->file, abs_name_offset, SEEK_SET) != 0) {
+      return BUN_ERR_IO;
+  }
 
     char *name_buf = malloc((size_t)r->name_length);
     if (!name_buf) {
@@ -239,7 +249,7 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
         return BUN_MALFORMED; 
     }
 
-    for (u32 j = 0; j < r->name_length; j++) {
+    for (u64 j = 0; j < r->name_length; j++) {
         if ((unsigned char)name_buf[j] < 0x20 ||
             (unsigned char)name_buf[j] > 0x7E) {
 
@@ -501,16 +511,12 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
 
 bun_result_t bun_parse_assets(BunParseContext *ctx) {
   /**
- * Parses all asset records from the asset table and validates each entry.
- * Accumulates violations.
- */
-  if (!ctx->header_parsed) {
-      return BUN_ERR_USAGE;
-    }
+   * Parses all asset records from the asset table and validates each entry.
+   * Accumulates violations.
+   */
 
-  // move file pointer to start of asset table
-  if (fseek(ctx->file, ctx->header.asset_table_offset, SEEK_SET) != 0) {
-    return BUN_ERR_IO;
+  if (!ctx->header_parsed) {
+    return BUN_ERR_USAGE;
   }
 
   // zero-check (safe edge case handling)
@@ -522,6 +528,7 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
 
   // allocate array for all asset records
   ctx->record_count = ctx->header.asset_count;
+
   if (ctx->record_count > 1000000) {
     if (bun_add_violation(ctx, "asset_count too large: %u", ctx->record_count) != 0) {
       return BUN_ERR_NOMEM;
@@ -538,36 +545,43 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
     return BUN_ERR_NOMEM;
   }
 
+  // buffer entire asset table to avoid repeated fseeko/fread
+  if (ctx->record_count > SIZE_MAX / BUN_ASSET_RECORD_SIZE) {
+    free(ctx->records);
+    return BUN_ERR_NOMEM;
+  }
+  size_t table_size = (size_t)ctx->record_count * BUN_ASSET_RECORD_SIZE;
+
+  u8 *table_buf = malloc(table_size);
+  if (!table_buf) {
+    free(ctx->records);
+    ctx->records = NULL;
+    return BUN_ERR_NOMEM;
+  }
+
+  // single seek instead of per-record seeks 
+  if (safe_fseeko(ctx->file, ctx->header.asset_table_offset, SEEK_SET) != 0) {
+    free(ctx->records);
+    free(table_buf);
+    ctx->records = NULL;
+    return BUN_ERR_IO;
+  }
+
+  // single bulk read 
+  if (fread(table_buf, 1, table_size, ctx->file) != table_size) {
+    free(ctx->records);
+    free(table_buf);
+    ctx->records = NULL;
+    return BUN_MALFORMED;
+  }
+
   bun_result_t final_result = BUN_OK;
 
-    // parse and validate all records
+  // parse and validate all records
   for (u32 i = 0; i < ctx->record_count; i++) {
-    u8 buf[BUN_ASSET_RECORD_SIZE];
 
-    u64 record_offset = ctx->header.asset_table_offset + (u64)i * BUN_ASSET_RECORD_SIZE;
-
-    if (fseeko(ctx->file, (off_t)record_offset, SEEK_SET) != 0) {
-      free(ctx->records);
-      ctx->records = NULL;
-      ctx->record_count = 0;
-      return BUN_ERR_IO;
-    }
-
-    size_t n = fread(buf, 1, BUN_ASSET_RECORD_SIZE, ctx->file);
-    if (n != BUN_ASSET_RECORD_SIZE) {
-      if (bun_add_violation(ctx, "asset %u: incomplete record", i) != 0) {
-        free(ctx->records);
-        ctx->records = NULL;
-        ctx->record_count = 0;
-        return BUN_ERR_NOMEM;
-      }
-
-      free(ctx->records);
-      ctx->records = NULL;
-      ctx->record_count = 0;
-
-      return BUN_MALFORMED;
-    }
+    // read from memory buffer instead of file 
+    const u8 *buf = table_buf + ((size_t)i * BUN_ASSET_RECORD_SIZE);
 
     BunAssetRecord *r = &ctx->records[i];
     memset(r, 0, sizeof(*r));
@@ -575,20 +589,25 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
 
     // validate record against specification rules
     bun_result_t res = validate_record(ctx, i, r);
+
     if (res == BUN_ERR_IO || res == BUN_ERR_NOMEM) {
       free(ctx->records);
+      free(table_buf);
       ctx->records = NULL;
-      ctx->record_count = 0;
       return res;
     }
+
     if (res == BUN_MALFORMED) {
-      final_result = BUN_MALFORMED;  
+      final_result = BUN_MALFORMED;
     } else if (res == BUN_UNSUPPORTED) {
       if (final_result != BUN_MALFORMED) {
         final_result = BUN_UNSUPPORTED;
       }
     }
   }
+
+  free(table_buf);
+
   return final_result;
 }
 
