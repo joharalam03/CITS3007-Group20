@@ -551,6 +551,133 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
   return final_result;
 }
 
+void bun_print_summary(const BunParseContext *ctx, FILE *out)
+{
+    if (ctx == NULL || out == NULL) {
+        return;
+    }
+
+    const BunHeader *h = &ctx->header;
+
+    fprintf(out, "BUN header\n");
+    fprintf(out, "magic               = 0x%08x\n", h->magic);
+    fprintf(out, "version_major       = %u\n", h->version_major);
+    fprintf(out, "version_minor       = %u\n", h->version_minor);
+    fprintf(out, "asset_count         = %u\n", h->asset_count);
+    fprintf(out, "asset_table_offset  = %llu\n", (unsigned long long)h->asset_table_offset);
+    fprintf(out, "string_table_offset = %llu\n", (unsigned long long)h->string_table_offset);
+    fprintf(out, "string_table_size   = %llu\n", (unsigned long long)h->string_table_size);
+    fprintf(out, "data_section_offset = %llu\n", (unsigned long long)h->data_section_offset);
+    fprintf(out, "data_section_size   = %llu\n", (unsigned long long)h->data_section_size);
+    fprintf(out, "reserved            = %llu\n", (unsigned long long)h->reserved);
+
+    fprintf(out, "\nAsset records\n");
+
+    for (u32 i = 0; i < ctx->record_count; i++) {
+        const BunAssetRecord *r = &ctx->records[i];
+
+        fprintf(out, "\nAsset %u\n", i);
+        fprintf(out, "name_offset       = %u\n", r->name_offset);
+        fprintf(out, "name_length       = %u\n", r->name_length);
+        fprintf(out, "data_offset       = %llu\n", (unsigned long long)r->data_offset);
+        fprintf(out, "data_size         = %llu\n", (unsigned long long)r->data_size);
+        fprintf(out, "uncompressed_size = %llu\n", (unsigned long long)r->uncompressed_size);
+        fprintf(out, "compression       = %u\n", r->compression);
+        fprintf(out, "type              = %u\n", r->type);
+        fprintf(out, "checksum          = %u\n", r->checksum);
+        fprintf(out, "flags             = 0x%08x\n", r->flags);
+
+
+        size_t name_len = r->name_length;
+
+        if (name_len > 60) {
+            name_len = 60;
+        }
+
+        fprintf(out, "name_preview = ");
+
+        if (name_len == 0) {
+            fprintf(out, "empty");
+        } else {
+            u8 name_buf[60];
+
+            u64 name_pos = h->string_table_offset + (u64)r->name_offset;
+
+            if (fseek(ctx->file, (long)name_pos, SEEK_SET) == 0 &&
+                fread(name_buf, 1, name_len, ctx->file) == name_len) {
+
+                int printable = 1;
+
+                for (size_t j = 0; j < name_len; j++) {
+                    if (name_buf[j] < 0x20 || name_buf[j] > 0x7e) {
+                        printable = 0;
+                        break;
+                    }
+                }
+
+                if (printable) {
+                    for (size_t j = 0; j < name_len; j++) {
+                        fputc(name_buf[j], out);
+                    }
+                } else {
+                    fprintf(out, "hex:");
+                    for (size_t j = 0; j < name_len; j++) {
+                        fprintf(out, " %02x", name_buf[j]);
+                    }
+                }
+            } else {
+                fprintf(out, "could not read name");
+            }
+        }
+
+        fprintf(out, "\n");
+
+        size_t data_len = 60;
+
+        if (r->data_size < (u64)data_len) {
+            data_len = (size_t)r->data_size;
+        }
+
+        fprintf(out, "data_preview = ");
+
+        if (data_len == 0) {
+            fprintf(out, "empty");
+        } else {
+            u8 data_buf[60];
+
+            u64 data_pos = h->data_section_offset + r->data_offset;
+
+            if (fseek(ctx->file, (long)data_pos, SEEK_SET) == 0 &&
+                fread(data_buf, 1, data_len, ctx->file) == data_len) {
+
+                int printable = 1;
+
+                for (size_t j = 0; j < data_len; j++) {
+                    if (data_buf[j] < 0x20 || data_buf[j] > 0x7e) {
+                        printable = 0;
+                        break;
+                    }
+                }
+
+                if (printable) {
+                    for (size_t j = 0; j < data_len; j++) {
+                        fputc(data_buf[j], out);
+                    }
+                } else {
+                    fprintf(out, "hex:");
+                    for (size_t j = 0; j < data_len; j++) {
+                        fprintf(out, " %02x", data_buf[j]);
+                    }
+                }
+            } else {
+                fprintf(out, "could not read data");
+            }
+        }
+
+        fprintf(out, "\n");
+    }
+}
+
 bun_result_t bun_close(BunParseContext *ctx) {
   assert(ctx->file);
 
