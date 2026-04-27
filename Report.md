@@ -120,11 +120,13 @@ warning: comparison is always false due to limited range of data type
 ```
 As a result, these checks were removed because they do not provide meaningful safety and only add unnecessary complexity.
 
-Instead, memory safety is enforced through an explicit sanity limit on asset_count (e.g. a maximum of 1,000,000 records). This prevents excessive memory allocation and reduces the risk of denial-of-service behaviour while keeping the implementation simple and correct.
+Memory safety is enforced through an explicit sanity limit on asset_count (e.g. a maximum of 1,000,000 records). This prevents excessive memory allocation and reduces the risk of denial-of-service behaviour while keeping the implementation simple and correct.
+
+To handle file positioning safely across platforms, a `safe_fseeko` helper function is used instead of direct `fseek` calls when working with 64-bit offsets. This prevents truncation of large file offsets on systems where `long` is 32-bit and ensures consistent behaviour when seeking within large files.
 
 The parser follows a “validate everything, but continue where possible” approach. Each record is validated independently using validate_record, and violations are accumulated using bun_add_violation. Rather than stopping at the first error, the parser attempts to process all records and returns a final result based on severity:
-   - BUN_MALFORMED takes priority over BUN_UNSUPPORTED
-	- BUN_UNSUPPORTED takes priority over BUN_OK
+   - `BUN_MALFORMED` takes priority over `BUN_UNSUPPORTED`
+   - `BUN_UNSUPPORTED` takes priority over `BUN_OK`
 This ensures that the caller receives as much diagnostic information as possible.
 
 
