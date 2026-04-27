@@ -52,8 +52,8 @@ static bun_result_t bun_validate_rle(BunParseContext *ctx, u32 i, const BunAsset
       return BUN_MALFORMED;
   }
 
-  if (fseek(ctx->file, (long)abs_data_offset, SEEK_SET) != 0) {
-      return BUN_ERR_IO;
+  if (safe_fseeko(ctx->file, abs_data_offset, SEEK_SET) != 0) {
+    return BUN_ERR_IO;
   }
 
   // read in small chunks so we dont load the whole thing into memory
