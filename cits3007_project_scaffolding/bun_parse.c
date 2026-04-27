@@ -187,28 +187,35 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
   int name_valid = 1;
 
   if (name_length > UINT64_MAX - name_offset) {
-      bun_add_violation(ctx, "asset %u: name range overflow", i);
+      if (bun_add_violation(ctx, "asset %u: name range overflow", i) != 0) {
+        return BUN_ERR_NOMEM;
+      }
       result =  BUN_MALFORMED;
       name_valid = 0;
   }
   u64 name_end = name_offset + name_length;
 
   if (r->name_length < 1 || name_end > ctx->header.string_table_size) {
-
-      bun_add_violation(ctx, "asset %u: invalid name bounds", i);
+      if (bun_add_violation(ctx, "asset %u: invalid name bounds", i) != 0 ) {
+        return BUN_ERR_NOMEM;
+      }
       result = BUN_MALFORMED;
       name_valid = 0;
   }
 
   u64 abs_name_offset = ctx->header.string_table_offset + name_offset;
   if (abs_name_offset < ctx->header.string_table_offset) {
-      bun_add_violation(ctx, "asset %u: absolute name offset overflow", i);
+      if (bun_add_violation(ctx, "asset %u: absolute name offset overflow", i) != 0) {
+        return BUN_ERR_NOMEM;
+      }
       result = BUN_MALFORMED;
       name_valid = 0;
   }
 
   if (name_length > UINT64_MAX - abs_name_offset || abs_name_offset + name_length > (u64)ctx->file_size) {
-    bun_add_violation(ctx, "asset %u: name exceeds file bounds", i);
+    if (bun_add_violation(ctx, "asset %u: name exceeds file bounds", i) != 0) {
+      return BUN_ERR_NOMEM;
+    }
     name_valid = 0;
     result = BUN_MALFORMED;
   }
@@ -224,7 +231,9 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
     }
 
     if (fread(name_buf, 1, (size_t)r->name_length, ctx->file) != (size_t)r->name_length) {
-        bun_add_violation(ctx, "asset %u: name read error", i);
+        if (bun_add_violation(ctx, "asset %u: name read error", i) != 0) {
+          return BUN_ERR_NOMEM;
+        }
         free(name_buf);
         return BUN_MALFORMED; 
     }
@@ -233,8 +242,9 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
         if ((unsigned char)name_buf[j] < 0x20 ||
             (unsigned char)name_buf[j] > 0x7E) {
 
-            bun_add_violation(ctx,
-                "asset %u: non-printable character in name", i);
+            if (bun_add_violation(ctx, "asset %u: non-printable character in name", i) != 0) {
+              return BUN_ERR_NOMEM;
+            }
 
             result = BUN_MALFORMED;
             break; 
@@ -247,49 +257,65 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
   u64 data_offset = r->data_offset;         
   u64 data_size = r->data_size;              
   if (data_size > UINT64_MAX - data_offset) {
-      bun_add_violation(ctx, "asset %u: data range overflow", i);
+      if (bun_add_violation(ctx, "asset %u: data range overflow", i) != 0) {
+        return BUN_ERR_NOMEM;
+      }
       result = BUN_MALFORMED;
   }
   u64 data_end = data_offset + data_size;
 
   if (data_end > ctx->header.data_section_size) {
-      bun_add_violation(ctx, "asset %u: data out of bounds", i);
+      if (bun_add_violation(ctx, "asset %u: data out of bounds", i) != 0) {
+        return BUN_ERR_NOMEM;
+      }
       result = BUN_MALFORMED;
   }
 
   u64 abs_data_offset = ctx->header.data_section_offset + data_offset;
   if (abs_data_offset < ctx->header.data_section_offset) {
-      bun_add_violation(ctx, "asset %u: absolute data offset overflow", i);
+      if (bun_add_violation(ctx, "asset %u: absolute data offset overflow", i) != 0) {
+        return BUN_ERR_NOMEM;
+      }
       result = BUN_MALFORMED;
   }
   if (data_size > UINT64_MAX - abs_data_offset ||
       abs_data_offset + data_size > (u64)ctx->file_size) {
 
-      bun_add_violation(ctx, "asset %u: data exceeds file size", i);
+      if (bun_add_violation(ctx, "asset %u: data exceeds file size", i) != 0) {
+        return BUN_ERR_NOMEM;
+      }
       result = BUN_MALFORMED;
   }
 
   if (r->compression == 2) {
-      bun_add_violation(ctx, "asset %u: zlib compression not supported", i);
+      if (bun_add_violation(ctx, "asset %u: zlib compression not supported", i) != 0) {
+        return BUN_ERR_NOMEM;
+      }
       if (result != BUN_MALFORMED) {
           result = BUN_UNSUPPORTED;
       }
   }
 
   if (r->compression > 2) {
-      bun_add_violation(ctx, "asset %u: invalid compression type", i);
+      if (bun_add_violation(ctx, "asset %u: invalid compression type", i) != 0) {
+        return BUN_ERR_NOMEM;
+      }
       if (result != BUN_MALFORMED) {
           result = BUN_UNSUPPORTED;
       }
   }
 
   if (r->compression == 0 && r->uncompressed_size != 0) {
-      bun_add_violation(ctx, "asset %u: invalid uncompressed size", i);
+      if (bun_add_violation(ctx, "asset %u: invalid uncompressed size", i) != 0) {
+        return BUN_ERR_NOMEM;
+      }
       result = BUN_MALFORMED;
   }
 
   if (r->checksum != 0) {
-      bun_add_violation(ctx, "asset %u: checksum not supported", i);
+      if (bun_add_violation(ctx, "asset %u: checksum not supported", i) != 0) {
+        return BUN_ERR_NOMEM;
+      }
       if (result != BUN_MALFORMED) {
           result = BUN_UNSUPPORTED;
       }
@@ -298,7 +324,9 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
   u32 allowed = BUN_FLAG_ENCRYPTED | BUN_FLAG_EXECUTABLE;
 
   if (r->flags & ~allowed) {
-      bun_add_violation(ctx, "asset %u: unknown flag bits set", i);
+      if (bun_add_violation(ctx, "asset %u: unknown flag bits set", i) != 0) {
+        return BUN_ERR_NOMEM;
+      }
       if (result != BUN_MALFORMED) {
           result = BUN_UNSUPPORTED;
       }
@@ -494,7 +522,9 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
   // allocate array for all asset records
   ctx->record_count = ctx->header.asset_count;
   if (ctx->record_count > 1000000) {
-    bun_add_violation(ctx, "asset_count too large: %u", ctx->record_count);
+    if (bun_add_violation(ctx, "asset_count too large: %u", ctx->record_count) != 0) {
+      return BUN_ERR_NOMEM;
+    }
     return BUN_MALFORMED;
   }
   ctx->records = malloc(sizeof(BunAssetRecord) * ctx->record_count);
@@ -519,7 +549,9 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
 
     size_t n = fread(buf, 1, BUN_ASSET_RECORD_SIZE, ctx->file);
     if (n != BUN_ASSET_RECORD_SIZE) {
-      bun_add_violation(ctx, "asset %u: incomplete record", i);
+      if (bun_add_violation(ctx, "asset %u: incomplete record", i) != 0) {
+        return BUN_ERR_NOMEM;
+      }
 
       free(ctx->records);
       ctx->records = NULL;
