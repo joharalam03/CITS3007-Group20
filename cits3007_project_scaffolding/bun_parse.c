@@ -263,6 +263,7 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
 
     if (fread(name_buf, 1, (size_t)r->name_length, ctx->file) != (size_t)r->name_length) {
         if (bun_add_violation(ctx, "asset %u: name read error", i) != 0) {
+          free(name_buf);
           return BUN_ERR_NOMEM;
         }
         free(name_buf);
@@ -274,6 +275,7 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
             (unsigned char)name_buf[j] > 0x7E) {
 
             if (bun_add_violation(ctx, "asset %u: non-printable character in name", i) != 0) {
+              free(name_buf);
               return BUN_ERR_NOMEM;
             }
 
@@ -512,7 +514,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx, BunHeader *header) {
     }
   }
 
-  if (asset_end > ctx->file_size){
+  if (asset_end > (u64) ctx->file_size){
      if (bun_add_violation(ctx, "Asset table exceeds file size") != 0){
         return BUN_ERR_NOMEM;
     }
@@ -533,7 +535,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx, BunHeader *header) {
     }
   }
 
-  if (string_table_end > ctx->file_size){
+  if (string_table_end > (u64) ctx->file_size){
      if (bun_add_violation(ctx, "String table exceeds file size") != 0){
         return BUN_ERR_NOMEM;
     }
@@ -554,7 +556,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx, BunHeader *header) {
     }
   }
 
-  if (data_section_end > ctx->file_size){
+  if (data_section_end > (u64) ctx->file_size){
     if (bun_add_violation(ctx, "Data section exceeds file size") != 0){
         return BUN_ERR_NOMEM;
     }
