@@ -90,7 +90,7 @@ The parser uses these exit codes
 |---:|---|
 | 0 | BUN_OK — file parsed successfully |
 | 1 | BUN_MALFORMED— file violates the BUN specification |
-| 2 | BUN_UNSUPPORTED — file uses an unsupported feature, such as zlib compression, unsupported version, non-zero checksum, or unsupported flag bits |
+| 2 | BUN_UNSUPPORTEDrep — file uses an unsupported feature, such as zlib compression, unsupported version, non-zero checksum, or unsupported flag bits |
 | 3 | BUN_ERR_IO — file could not be opened or read |
 | 4 | BUN_ERR_USAGE — wrong number of command-line arguments |
 | 5 | BUN_ERR_NOMEM — memory allocation failed |
