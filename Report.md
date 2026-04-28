@@ -2,7 +2,7 @@
 
 ## Group Informaton
 
-### **Group Number: 20 **  
+### Group Number: 20 
 
 ### Group Members
 
@@ -154,6 +154,94 @@ The following tools were used during development:
 - macOS Terminal for compiling and running tests
 - GCC / Clang compiler with warnings enabled
 - Check unit testing framework supplied in the scaffold
+
+### GCC Warning Flags
+
+We used GCC warning flags during compilation to detect common C programming mistakes. The project was compiled with flags including '-std=c11', '-Wall', '-Wextra', and '-Wpedantic'.
+
+Command used:
+
+```bash
+make test-asan
+```
+
+- First finding:
+
+GCC reported signedness comparison warnings in 'bun_parse_header', where calculated u64 section end offsets were compared with ctx->file_size.
+
+```
+bun_parse.c:490:17: warning: comparison of integer expressions of different signedness: ‘u64’ {aka ‘long unsigned int’} and ‘long int’ [-Wsign-compare]
+490 | if (asset_end > ctx->file_size){
+| ^
+bun_parse.c:511:24: warning: comparison of integer expressions of different signedness: ‘u64’ {aka ‘long unsigned int’} and ‘long int’ [-Wsign-compare]
+511 | if (string_table_end > ctx->file_size){
+| ^
+bun_parse.c:532:24: warning: comparison of integer expressions of different signedness: ‘u64’ {aka ‘long unsigned int’} and ‘long int’ [-Wsign-compare]
+532 | if (data_section_end > ctx->file_size){
+| ^
+```
+
+These warnings were relevant because the parser performs bounds checks using file offsets and section sizes from an input file. Signed and unsigned comparisons can hide logic errors in bounds checks, especially when offsets and sizes may be attacker-controlled.
+
+Change made:
+
+We fixed the warnings by converting ctx->file_size to u64 before comparing it with calculated section end values. This made the bounds checks use consistent unsigned integer types.
+
+Evidence:
+
+GitHub issue: #9, Compiler warning: signedness comparison in header bounds checks
+
+- Second finding:
+
+GCC also reported that an asset allocation overflow check in 'bun_parse_assets' was ineffective because the condition was always false due to the limited range of 'ctx->record_count'.
+
+This was relevant because 'asset_count' comes from the input file and is used to allocate the asset record array. If this value is extremely large, the parser could attempt an unreasonable allocation.
+
+Change made:
+
+We removed the unreachable overflow check and replaced it with a practical sanity limit. If 'asset_count' is greater than 1,000,000, the parser records a violation and returns 'BUN_MALFORMED' before allocating the records array.
+
+Evidence:
+
+GitHub issue: #10, Compiler warning: unreachable overflow check in asset allocation
+
+Final result:
+
+After the fix, the issue was closed as completed and the test suite passed with all 22 tests passing and no failures or errors.
+
+### cppcheck
+
+We used cppcheck as a static analysis tool to detect possible memory-management and code-quality issues.
+
+Command used:
+
+```bash
+make lint
+```
+
+Finding:
+cppcheck reported a memory leak in bun_parse.c during asset name validation:
+
+```
+Checking bun_parse.c ...
+bun_parse.c:244:11: error: Memory leak: name_buf [memleak]
+return BUN_ERR_NOMEM;
+^
+```
+
+This was important because name_buf is dynamically allocated while validating asset names. If an error path returned before freeing it, malformed files could cause the parser to leak memory.
+
+Change made:
+
+We added free(name_buf) before returning from the affected error paths. This ensures that the temporary asset-name buffer is released even when bun_add_violation fails.
+
+Evidence:
+
+GitHub issue: #18, Fix cppcheck memory leak in asset name validation
+
+Final result:
+
+After the fix, the cppcheck memory leak warning was resolved.
 
 ## 5. Security Aspects
 
