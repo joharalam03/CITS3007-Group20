@@ -1,16 +1,16 @@
-#define _FILE_OFFSET_BITS 64
-#define _POSIX_C_SOURCE 200809L
+ #define _FILE_OFFSET_BITS 64
+ #define _POSIX_C_SOURCE 200809L
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <assert.h>
+ #include <stdarg.h>
+ #include <stdint.h>
+ #include <limits.h>
+ #include <sys/types.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <stdarg.h>
-#include <stdint.h>
-#include <limits.h>
-#include <sys/types.h>
-
-#include "bun.h"
+ #include "bun.h"
 
 /**
  * Example helper: convert 4 bytes in `buf`, positioned at `offset`,
@@ -96,6 +96,8 @@ void bun_ctx_free(BunParseContext *ctx) {
     ctx->violation_capacity = 0;
 }
 
+
+
 static bun_result_t bun_validate_rle(BunParseContext *ctx, u32 i, const BunAssetRecord *r) {
   // data_size needs to be even since each RLE pair is 2 bytes
   if ((r->data_size % 2u) != 0u) {
@@ -111,7 +113,7 @@ static bun_result_t bun_validate_rle(BunParseContext *ctx, u32 i, const BunAsset
       return BUN_MALFORMED;
   }
 
-  if (fseek(ctx->file, (long)abs_data_offset, SEEK_SET) != 0) {
+  if (safe_fseeko(ctx->file, abs_data_offset, SEEK_SET) != 0) {
       return BUN_ERR_IO;
   }
 
@@ -231,8 +233,8 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
 
   if (name_valid) {
     if (safe_fseeko(ctx->file, abs_name_offset, SEEK_SET) != 0) {
-      return BUN_ERR_IO;
-  }
+        return BUN_ERR_IO;
+    }
 
     char *name_buf = malloc((size_t)r->name_length);
     if (!name_buf) {
@@ -457,7 +459,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
   }
 
   if ((h->data_section_offset & 3) != 0){
-    if (bun_add_violation(ctx, "Data section offest not aligned") != 0){
+    if (bun_add_violation(ctx, "Data section offset not aligned") != 0){
         return BUN_ERR_NOMEM;
     }
     if (result == BUN_OK) {
@@ -615,7 +617,7 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
     return BUN_ERR_NOMEM;
   }
 
-  // single seek instead of per-record seeks 
+  // single seek instead of per-record seeks
   if (safe_fseeko(ctx->file, ctx->header.asset_table_offset, SEEK_SET) != 0) {
     free(ctx->records);
     free(table_buf);
@@ -623,7 +625,7 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
     return BUN_ERR_IO;
   }
 
-  // single bulk read 
+  // single bulk read
   if (fread(table_buf, 1, table_size, ctx->file) != table_size) {
     free(ctx->records);
     free(table_buf);
@@ -635,8 +637,6 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
 
   // parse and validate all records
   for (u32 i = 0; i < ctx->record_count; i++) {
-
-    // read from memory buffer instead of file 
     const u8 *buf = table_buf + ((size_t)i * BUN_ASSET_RECORD_SIZE);
 
     BunAssetRecord *r = &ctx->records[i];
@@ -719,7 +719,7 @@ void bun_print_summary(const BunParseContext *ctx, FILE *out)
 
             u64 name_pos = h->string_table_offset + (u64)r->name_offset;
 
-            if (fseek(ctx->file, (long)name_pos, SEEK_SET) == 0 &&
+            if (safe_fseeko(ctx->file, name_pos, SEEK_SET) == 0 &&
                 fread(name_buf, 1, name_len, ctx->file) == name_len) {
 
                 int printable = 1;
@@ -763,7 +763,7 @@ void bun_print_summary(const BunParseContext *ctx, FILE *out)
 
             u64 data_pos = h->data_section_offset + r->data_offset;
 
-            if (fseek(ctx->file, (long)data_pos, SEEK_SET) == 0 &&
+            if (safe_fseeko(ctx->file, data_pos, SEEK_SET) == 0 &&
                 fread(data_buf, 1, data_len, ctx->file) == data_len) {
 
                 int printable = 1;
