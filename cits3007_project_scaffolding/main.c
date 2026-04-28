@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
 
   // Print the violations found
   for (size_t i = 0; i < ctx.violation_count; i++) {
-    fprintf(stderr, "Violation %s\n", ctx.violations[i].message);
+    fprintf(stderr, "Violation: %s\n", ctx.violations[i].message);
   }
 
   if (ctx.header_parsed) {
