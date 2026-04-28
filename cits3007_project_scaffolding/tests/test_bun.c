@@ -396,11 +396,11 @@ START_TEST(test_violation_grows_capacity) {
     for (int i = 0; i < 50; i++) {
         bun_add_violation(&ctx, "violation %d", i);
     }
-    ck_assert_uint_eq(ctx.violation_count, 20);
-    ck_assert_uint_ge(ctx.violation_capacity, 20);
+    ck_assert_uint_eq(ctx.violation_count, 50);
+    ck_assert_uint_ge(ctx.violation_capacity, 50);
     bun_ctx_free(&ctx);
 }
-END TEST
+END_TEST
 
 START_TEST(open_missing_file){
     BunParseContext ctx = {0};
@@ -409,7 +409,7 @@ START_TEST(open_missing_file){
     bun_ctx_free(&ctx);
 
 }
-END TEST
+END_TEST
 
 // Assemble a test suite from our tests
 
@@ -445,6 +445,12 @@ static Suite *bun_suite(void) {
     tcase_add_test(tc_assets, test_valid_multi_assets_slack);
     tcase_add_test(tc_assets, test_valid_rle_asset);
     suite_add_tcase(s, tc_assets);
+
+    // Custom tests
+    TCase *tc_custom = tcase_create("our_custom_tests");
+    tcase_add_test(tc_custom, test_violation_grows_capacity);
+    tcase_add_test(tc_custom, open_missing_file);
+    suite_add_tcase(s, tc_custom);
 
     return s;
 }
