@@ -1,16 +1,17 @@
-#define _FILE_OFFSET_BITS 64
-#define _POSIX_C_SOURCE 200809L
+ #define _FILE_OFFSET_BITS 64
+ #define _POSIX_C_SOURCE 200809L
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <assert.h>
+ #include <stdarg.h>
+ #include <stdint.h>
+ #include <limits.h>
+ #include <sys/types.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <stdarg.h>
-#include <stdint.h>
-#include <limits.h>
-#include <sys/types.h>
+ #include "bun.h"
 
-#include "bun.h"
 
 /**
  * Example helper: convert 4 bytes in `buf`, positioned at `offset`,
@@ -96,6 +97,8 @@ void bun_ctx_free(BunParseContext *ctx) {
     ctx->violation_capacity = 0;
 }
 
+
+
 static bun_result_t bun_validate_rle(BunParseContext *ctx, u32 i, const BunAssetRecord *r) {
   // data_size needs to be even since each RLE pair is 2 bytes
   if ((r->data_size % 2u) != 0u) {
@@ -111,7 +114,7 @@ static bun_result_t bun_validate_rle(BunParseContext *ctx, u32 i, const BunAsset
       return BUN_MALFORMED;
   }
 
-  if (fseek(ctx->file, (long)abs_data_offset, SEEK_SET) != 0) {
+  if (safe_fseeko(ctx->file, abs_data_offset, SEEK_SET) != 0) {
       return BUN_ERR_IO;
   }
 
@@ -195,14 +198,17 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
 
   int name_valid = 1;
 
+  u64 name_end = 0;
+
   if (name_length > UINT64_MAX - name_offset) {
       if (bun_add_violation(ctx, "asset %u: name range overflow", i) != 0) {
-        return BUN_ERR_NOMEM;
+          return BUN_ERR_NOMEM;
       }
-      result =  BUN_MALFORMED;
+      result = BUN_MALFORMED;
       name_valid = 0;
+  } else {
+      name_end = name_offset + name_length;
   }
-  u64 name_end = name_offset + name_length;
 
   if (r->name_length < 1 || name_end > ctx->header.string_table_size) {
       if (bun_add_violation(ctx, "asset %u: invalid name bounds", i) != 0 ) {
@@ -231,8 +237,8 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
 
   if (name_valid) {
     if (safe_fseeko(ctx->file, abs_name_offset, SEEK_SET) != 0) {
-      return BUN_ERR_IO;
-  }
+        return BUN_ERR_IO;
+    }
 
     char *name_buf = malloc((size_t)r->name_length);
     if (!name_buf) {
@@ -241,6 +247,7 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
 
     if (fread(name_buf, 1, (size_t)r->name_length, ctx->file) != (size_t)r->name_length) {
         if (bun_add_violation(ctx, "asset %u: name read error", i) != 0) {
+          free(name_buf);
           return BUN_ERR_NOMEM;
         }
         free(name_buf);
@@ -252,6 +259,7 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
             (unsigned char)name_buf[j] > 0x7E) {
 
             if (bun_add_violation(ctx, "asset %u: non-printable character in name", i) != 0) {
+              free(name_buf);
               return BUN_ERR_NOMEM;
             }
 
@@ -265,35 +273,47 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
   // VALIDATE DATA
   u64 data_offset = r->data_offset;         
   u64 data_size = r->data_size;              
+  u64 data_end = 0;
+  int data_valid = 1;
+
   if (data_size > UINT64_MAX - data_offset) {
       if (bun_add_violation(ctx, "asset %u: data range overflow", i) != 0) {
-        return BUN_ERR_NOMEM;
+          return BUN_ERR_NOMEM;
       }
       result = BUN_MALFORMED;
+      data_valid = 0;
+  } else {
+      data_end = data_offset + data_size;
   }
-  u64 data_end = data_offset + data_size;
 
-  if (data_end > ctx->header.data_section_size) {
+  if (data_valid && data_end > ctx->header.data_section_size) {
       if (bun_add_violation(ctx, "asset %u: data out of bounds", i) != 0) {
         return BUN_ERR_NOMEM;
       }
       result = BUN_MALFORMED;
   }
 
-  u64 abs_data_offset = ctx->header.data_section_offset + data_offset;
-  if (abs_data_offset < ctx->header.data_section_offset) {
-      if (bun_add_violation(ctx, "asset %u: absolute data offset overflow", i) != 0) {
-        return BUN_ERR_NOMEM;
-      }
-      result = BUN_MALFORMED;
-  }
-  if (data_size > UINT64_MAX - abs_data_offset ||
-      abs_data_offset + data_size > (u64)ctx->file_size) {
+  u64 abs_data_offset = 0;
 
-      if (bun_add_violation(ctx, "asset %u: data exceeds file size", i) != 0) {
-        return BUN_ERR_NOMEM;
+  if (data_offset > UINT64_MAX - ctx->header.data_section_offset) {
+      if (bun_add_violation(ctx, "asset %u: absolute data offset overflow", i) != 0) {
+          return BUN_ERR_NOMEM;
       }
       result = BUN_MALFORMED;
+      data_valid = 0;
+  } else {
+      abs_data_offset = ctx->header.data_section_offset + data_offset;
+  }
+
+  if (data_valid) {
+    if (data_size > UINT64_MAX - abs_data_offset ||
+        abs_data_offset + data_size > (u64)ctx->file_size) {
+
+        if (bun_add_violation(ctx, "asset %u: data exceeds file size", i) != 0) {
+          return BUN_ERR_NOMEM;
+        }
+        result = BUN_MALFORMED;
+    }
   }
 
   if (r->compression == 2) {
@@ -341,7 +361,7 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
       }
   }
 
-  if (r->compression == 1) {
+  if (r->compression == 1 && data_valid) {
     bun_result_t rle_res = bun_validate_rle(ctx, i, r);
 
     if (rle_res == BUN_MALFORMED) {
@@ -384,15 +404,21 @@ bun_result_t bun_open(const char *path, BunParseContext *ctx) {
 }
 
 bun_result_t bun_parse_header(BunParseContext *ctx) {
+  if (ctx == NULL) {
+    return BUN_ERR_USAGE;
+  }
   u8 buf[BUN_HEADER_SIZE];
   bun_result_t result = BUN_OK;
+  int ranges_valid = 1;
 
   // our file is far too short, and cannot be valid!
   // (query: how do we let `main` know that "file was too short"
   // was the exact problem? Where can we put details about the
   // exact validation problem that occurred?)
   if (ctx->file_size < (long)BUN_HEADER_SIZE) {
-    bun_add_violation(ctx, "File length was too small");
+    if (bun_add_violation(ctx, "File length was too small") != 0) {
+        return BUN_ERR_NOMEM;
+    }
     return BUN_MALFORMED;
   }
 
@@ -457,7 +483,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
   }
 
   if ((h->data_section_offset & 3) != 0){
-    if (bun_add_violation(ctx, "Data section offest not aligned") != 0){
+    if (bun_add_violation(ctx, "Data section offset not aligned") != 0){
         return BUN_ERR_NOMEM;
     }
     if (result == BUN_OK) {
@@ -474,103 +500,113 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
     }
   }
 
-  u64 asset_table_size = (u64)h->asset_count * BUN_ASSET_RECORD_SIZE;
-  u64 asset_start = h->asset_table_offset;
-  u64 asset_end = asset_start + asset_table_size;
+   u64 asset_start = h->asset_table_offset;
+    u64 asset_table_size = (u64)h->asset_count * BUN_ASSET_RECORD_SIZE;
+    u64 asset_end = 0;
 
-  if (asset_end < asset_start){
-    if (bun_add_violation(ctx, "Asset table range overflow") != 0){
-        return BUN_ERR_NOMEM;
-    }
-    if (result == BUN_OK) {
-        result = BUN_MALFORMED;
-    }
-  }
+    if (asset_table_size > UINT64_MAX - asset_start) {
+        if (bun_add_violation(ctx, "Asset table range overflow") != 0) {
+            return BUN_ERR_NOMEM;
+        }
+        if (result == BUN_OK) {
+            result = BUN_MALFORMED;
+        }
+        ranges_valid = 0;
+    } else {
+        asset_end = asset_start + asset_table_size;
 
-  if (asset_end > ctx->file_size){
-     if (bun_add_violation(ctx, "Asset table exceeds file size") != 0){
-        return BUN_ERR_NOMEM;
+        if (asset_end > (u64)ctx->file_size) {
+            if (bun_add_violation(ctx, "Asset table exceeds file size") != 0) {
+                return BUN_ERR_NOMEM;
+            }
+            if (result == BUN_OK) {
+                result = BUN_MALFORMED;
+            }
+        }
     }
-    if (result == BUN_OK) {
-        result = BUN_MALFORMED;
-    }
-  }
 
   u64 string_table_start = h->string_table_offset;
-  u64 string_table_end = string_table_start + h->string_table_size;
+  u64 string_table_end = 0;
 
-  if (string_table_end < string_table_start){
-     if (bun_add_violation(ctx, "String table range overflow") != 0){
-        return BUN_ERR_NOMEM;
-    }
-    if (result == BUN_OK) {
-        result = BUN_MALFORMED;
-    }
-  }
+  if (h->string_table_size > UINT64_MAX - string_table_start) {
+        if (bun_add_violation(ctx, "String table range overflow") != 0) {
+            return BUN_ERR_NOMEM;
+        }
+        if (result == BUN_OK) {
+            result = BUN_MALFORMED;
+        }
+        ranges_valid = 0;
+    } else {
+        string_table_end = string_table_start + h->string_table_size;
 
-  if (string_table_end > ctx->file_size){
-     if (bun_add_violation(ctx, "String table exceeds file size") != 0){
-        return BUN_ERR_NOMEM;
+        if (string_table_end > (u64)ctx->file_size) {
+            if (bun_add_violation(ctx, "String table exceeds file size") != 0) {
+                return BUN_ERR_NOMEM;
+            }
+            if (result == BUN_OK) {
+                result = BUN_MALFORMED;
+            }
+        }
     }
-    if (result == BUN_OK) {
-        result = BUN_MALFORMED;
-    }
-  }
 
   u64 data_section_start = h->data_section_offset;
-  u64 data_section_end = data_section_start + h->data_section_size;
+  u64 data_section_end = 0;
 
-  if (data_section_end < data_section_start){
-     if (bun_add_violation(ctx, "Data section range overflow") != 0){
-        return BUN_ERR_NOMEM;
-    }
-    if (result == BUN_OK) {
-        result = BUN_MALFORMED;
-    }
-  }
+  if (h->data_section_size > UINT64_MAX - data_section_start) {
+        if (bun_add_violation(ctx, "Data section range overflow") != 0) {
+            return BUN_ERR_NOMEM;
+        }
+        if (result == BUN_OK) {
+            result = BUN_MALFORMED;
+        }
+        ranges_valid = 0;
+    } else {
+        data_section_end = data_section_start + h->data_section_size;
 
-  if (data_section_end > ctx->file_size){
-    if (bun_add_violation(ctx, "Data section exceeds file size") != 0){
-        return BUN_ERR_NOMEM;
+        if (data_section_end > (u64)ctx->file_size) {
+            if (bun_add_violation(ctx, "Data section exceeds file size") != 0) {
+                return BUN_ERR_NOMEM;
+            }
+            if (result == BUN_OK) {
+                result = BUN_MALFORMED;
+            }
+        }
     }
-    if (result == BUN_OK) {
-        result = BUN_MALFORMED;
-    }
-  }
 
-  if (!(asset_end <= string_table_start || string_table_end <= asset_start)){
-   if (bun_add_violation(ctx, "Asset table overlaps string table") != 0){
-        return BUN_ERR_NOMEM;
-    }
-    if (result == BUN_OK) {
-        result = BUN_MALFORMED;
-    }
-  }
+  if (ranges_valid) {
+        if (!(asset_end <= string_table_start || string_table_end <= asset_start)) {
+            if (bun_add_violation(ctx, "Asset table overlaps string table") != 0) {
+                return BUN_ERR_NOMEM;
+            }
+            if (result == BUN_OK) {
+                result = BUN_MALFORMED;
+            }
+        }
 
-  if (!(string_table_end <= data_section_start || data_section_end <= string_table_start)){
-    if (bun_add_violation(ctx, "String table overlaps data section") != 0){
-        return BUN_ERR_NOMEM;
-    }
-    if (result == BUN_OK) {
-        result = BUN_MALFORMED;
-    }
-  }
+        if (!(string_table_end <= data_section_start || data_section_end <= string_table_start)) {
+            if (bun_add_violation(ctx, "String table overlaps data section") != 0) {
+                return BUN_ERR_NOMEM;
+            }
+            if (result == BUN_OK) {
+                result = BUN_MALFORMED;
+            }
+        }
 
-  if (!(asset_end <= data_section_start || data_section_end <= asset_start)){
-    if (bun_add_violation(ctx, "Asset table overlaps data section") != 0){
-        return BUN_ERR_NOMEM;
+        if (!(asset_end <= data_section_start || data_section_end <= asset_start)) {
+            if (bun_add_violation(ctx, "Asset table overlaps data section") != 0) {
+                return BUN_ERR_NOMEM;
+            }
+            if (result == BUN_OK) {
+                result = BUN_MALFORMED;
+            }
+        }
     }
-   
-    if (result == BUN_OK) {
-        result = BUN_MALFORMED;
-    }
-  }
 
-  if (result == BUN_OK) {
+if (result == BUN_OK) {
     ctx->header_parsed = 1;
-  }
+}
 
-  return result;
+return result;
 }
 
 bun_result_t bun_parse_assets(BunParseContext *ctx) {
@@ -615,7 +651,7 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
     return BUN_ERR_NOMEM;
   }
 
-  // single seek instead of per-record seeks 
+  // single seek instead of per-record seeks
   if (safe_fseeko(ctx->file, ctx->header.asset_table_offset, SEEK_SET) != 0) {
     free(ctx->records);
     free(table_buf);
@@ -623,7 +659,7 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
     return BUN_ERR_IO;
   }
 
-  // single bulk read 
+  // single bulk read
   if (fread(table_buf, 1, table_size, ctx->file) != table_size) {
     free(ctx->records);
     free(table_buf);
@@ -635,8 +671,6 @@ bun_result_t bun_parse_assets(BunParseContext *ctx) {
 
   // parse and validate all records
   for (u32 i = 0; i < ctx->record_count; i++) {
-
-    // read from memory buffer instead of file 
     const u8 *buf = table_buf + ((size_t)i * BUN_ASSET_RECORD_SIZE);
 
     BunAssetRecord *r = &ctx->records[i];
@@ -719,7 +753,7 @@ void bun_print_summary(const BunParseContext *ctx, FILE *out)
 
             u64 name_pos = h->string_table_offset + (u64)r->name_offset;
 
-            if (fseek(ctx->file, (long)name_pos, SEEK_SET) == 0 &&
+            if (safe_fseeko(ctx->file, name_pos, SEEK_SET) == 0 &&
                 fread(name_buf, 1, name_len, ctx->file) == name_len) {
 
                 int printable = 1;
@@ -763,7 +797,7 @@ void bun_print_summary(const BunParseContext *ctx, FILE *out)
 
             u64 data_pos = h->data_section_offset + r->data_offset;
 
-            if (fseek(ctx->file, (long)data_pos, SEEK_SET) == 0 &&
+            if (safe_fseeko(ctx->file, data_pos, SEEK_SET) == 0 &&
                 fread(data_buf, 1, data_len, ctx->file) == data_len) {
 
                 int printable = 1;
@@ -789,7 +823,6 @@ void bun_print_summary(const BunParseContext *ctx, FILE *out)
                 fprintf(out, "could not read data");
             }
         }
-
         fprintf(out, "\n");
     }
 }
