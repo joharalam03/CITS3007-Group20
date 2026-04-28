@@ -142,9 +142,9 @@ We fixed the warnings by converting ctx->file_size to u64 before comparing it wi
 
 Evidence:
 
-GitHub issue: #9, Compiler warning: signedness comparison in header bounds checks
-PR: #8, Testing and Tooling
-Fix commit: 67f92c9, Fix signedness comparison in header bounds checks
+ - GitHub issue: #9, Compiler warning: signedness comparison in header bounds checks
+ - PR: #8, Testing and Tooling
+ - Fix commit: 67f92c9, Fix signedness comparison in header bounds checks
 
 - Second finding:
 
@@ -158,9 +158,9 @@ We removed the unreachable overflow check and replaced it with a practical sanit
 
 Evidence:
 
-- GitHub issue: #10, Compiler warning: unreachable overflow check in asset allocation
-- PR: #8, Testing and Tooling
-- Fix commit: 0bec5fe, Replace unreachable allocation overflow check
+ - GitHub issue: #10, Compiler warning: unreachable overflow check in asset allocation
+ - PR: #8, Testing and Tooling
+ - Fix commit: 0bec5fe, Replace unreachable allocation overflow check
 
 Final result:
 
@@ -194,9 +194,9 @@ We added free(name_buf) before returning from the affected error paths. This ens
 
 Evidence:
 
-GitHub issue: #18, Fix cppcheck memory leak in asset name validation
-PR: #19, Fix warning
-Fix commit: 54d5edf, Fix cppcheck memory leak in asset name validation
+ - GitHub issue: #18, Fix cppcheck memory leak in asset name validation
+ - PR: #19, Fix warning
+ - Fix commit: 54d5edf, Fix cppcheck memory leak in asset name validation
 
 Final result:
 
