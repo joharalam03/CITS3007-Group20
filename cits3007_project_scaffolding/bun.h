@@ -128,7 +128,7 @@ bun_result_t bun_open(const char *path, BunParseContext *ctx);
  * On BUN_MALFORMED/BUN_UNSUPPORTED: appends one or more messages to
  * ctx->violations describing the problem(s) found.
  */
-bun_result_t bun_parse_header(BunParseContext *ctx, BunHeader *header);
+bun_result_t bun_parse_header(BunParseContext *ctx);
 
 /**
  * Parse and validate all asset records. Must be called after bun_parse_header.
