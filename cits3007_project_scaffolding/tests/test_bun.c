@@ -390,6 +390,27 @@ START_TEST(test_valid_rle_asset) {
 }
 END_TEST
 
+START_TEST(test_violation_grows_capacity) {
+    BunParseContext ctx = {0};
+
+    for (int i = 0; i < 50; i++) {
+        bun_add_violation(&ctx, "violation %d", i);
+    }
+    ck_assert_uint_eq(ctx.violation_count, 20);
+    ck_assert_uint_ge(ctx.violation_capacity, 20);
+    bun_ctx_free(&ctx);
+}
+END TEST
+
+START_TEST(open_missing_file){
+    BunParseContext ctx = {0};
+    bun_result_t r = bun_open("tests/fixtures/does_not_exist.bun", &ctx);
+    ck_assert_int_eq(r, BUN_ERR_IO);
+    bun_ctx_free(&ctx);
+
+}
+END TEST
+
 // Assemble a test suite from our tests
 
 static Suite *bun_suite(void) {
