@@ -13,18 +13,6 @@
  #include "bun.h"
 
 
-
-int bun_add_violation(BunParseContext *ctx, const char *fmt, ...)
-{
-    (void)ctx;
-
-    va_list args;
-    va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
-    fprintf(stderr, "\n");
-    va_end(args);
-    return 0;
-}
 /**
  * Example helper: convert 4 bytes in `buf`, positioned at `offset`,
  * into a little-endian u32.
