@@ -12,14 +12,7 @@
 
  #include "bun.h"
 
-static int safe_fseeko(FILE *file, u64 offset, int whence)
-{
-    if (offset > LONG_MAX) {
-        return -1;
-    }
 
-    return fseek(file, (long)offset, whence);
-}
 
 int bun_add_violation(BunParseContext *ctx, const char *fmt, ...)
 {
