@@ -133,7 +133,27 @@ This ensures that the caller receives as much diagnostic information as possible
 
 ## 3. Libraries Used
 
+The implementation uses only standard C and POSIX-compatible libraries.
+
+- stdio.h – file operations such as fopen, fread, fclose, fprintf
+- stdlib.h – dynamic memory allocation (malloc, realloc, free)
+- string.h – memory operations such as memset
+- stdint.h – fixed-width integer types (uint32_t, uint64_t)
+- stddef.h – size_t
+- stdarg.h – variadic functions for bun_add_violation
+- limits.h – numeric limits such as LLONG_MAX
+- sys/types.h – off_t for file offsets
+
+POSIX functions fseeko() and ftello() were used to safely support large file offsets.
+
 ## 4. Tools Used
+The following tools were used during development:
+
+- Visual Studio Code for editing and debugging
+- Git and GitHub for version control, pull requests, and collaboration
+- macOS Terminal for compiling and running tests
+- GCC / Clang compiler with warnings enabled
+- Check unit testing framework supplied in the scaffold
 
 ## 5. Security Aspects
 
