@@ -138,5 +138,10 @@ This ensures that the caller receives as much diagnostic information as possible
 ## 5. Security Aspects
 
 ## 6. Coding Standards
+We adopted a consistent C coding style during implementation of the BUN parser to ensure readability and maintainability. All functions and variables use snake_case naming, while struct types follow PascalCase as defined in bun.h. We avoid mixing naming conventions to keep the codebase consistent across multiple contributors.
+
+We use early returns for error handling to simplify control flow and avoid deeply nested conditional logic. All validation functions return a bun_result_t to ensure consistent error propagation across parsing stages. Any detected violation is recorded using bun_add_violation() while still allowing the function to terminate appropriately depending on severity.
+
+All multi-byte fields read from the binary file are converted using little-endian helper functions, ensuring portability across different architectures. Arithmetic involving offsets and lengths is consistently performed using u64 casting to prevent integer overflow during boundary checks.
 
 ## 7. Challenges
