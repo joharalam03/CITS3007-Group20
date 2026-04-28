@@ -82,7 +82,7 @@ Violation asset 0 name length is zero
 Violation asset 1 data range exceeds data section
 ```
 
-There are certain errors that prevent futhur parsing such as if the file is shorter thatn the 60 byte header, the parser reports the error and stops.
+There are certain errors that prevent futhur parsing such as if the file is shorter than the 60 byte header, the parser reports the error and stops.
 
 The parser uses these exit codes
 
@@ -99,6 +99,37 @@ Our implementation stores validation messages in the parse context and prints th
 
 
 ## 2. Decisions and Assumptions
+We assume that certain features are out of scope for this implementation: zlib compression, checksum validation, and unknown compression or flag values are treated as unsupported and reported accordingly. We also assume that zero-asset files (`asset_count == 0`) are valid. Additionally, section ordering within the file is not fixed, so all validation is based purely on offsets and bounds rather than physical layout.
+
+We address issues relating to integer overflow and wraparound when working with offsets and sizes. Since the BUN format uses 64-bit values, all arithmetic involving these fields is carefully guarded. For example, overflow is checked before performing addition:
+
+```c
+if (data_size > UINT64_MAX - data_offset)
+```
+This prevents overflow in the expression `data_offset + data_size`. Similarly, absolute offsets (e.g. `data_section_offset + data_offset`) are validated by checking for wraparound, which is detected when the computed result becomes smaller than the base offset due to unsigned integer overflow. This prevents malformed or malicious files from causing undefined behaviour or out-of-bounds access.
+
+Additionally, certain redundant or impossible checks were removed during development. For example, the following checks were originally included to guard against allocation overflow:
+
+```c
+if (ctx->record_count > SIZE_MAX / sizeof(BunAssetRecord))
+if (ctx->record_count > SIZE_MAX / BUN_ASSET_RECORD_SIZE)
+```
+However, record_count is derived from asset_count, which is a 32-bit unsigned integer (u32). Since SIZE_MAX on a 64-bit system is significantly larger than any possible u32 value, these conditions will always evaluate to false. This was confirmed by compiler warnings:
+```text
+warning: comparison is always false due to limited range of data type
+```
+As a result, these checks were removed because they do not provide meaningful safety and only add unnecessary complexity.
+
+Memory safety is enforced through an explicit sanity limit on asset_count (e.g. a maximum of 1,000,000 records). This prevents excessive memory allocation and reduces the risk of denial-of-service behaviour while keeping the implementation simple and correct.
+
+To handle file positioning safely across platforms, a `safe_fseeko` helper function is used instead of direct `fseek` calls when working with 64-bit offsets. This prevents truncation of large file offsets on systems where `long` is 32-bit and ensures consistent behaviour when seeking within large files.
+
+The parser follows a “validate everything, but continue where possible” approach. Each record is validated independently using validate_record, and violations are accumulated using bun_add_violation. Rather than stopping at the first error, the parser attempts to process all records and returns a final result based on severity:
+   - `BUN_MALFORMED` takes priority over `BUN_UNSUPPORTED`
+   - `BUN_UNSUPPORTED` takes priority over `BUN_OK`
+This ensures that the caller receives as much diagnostic information as possible.
+
+
 
 ## 3. Libraries Used
 
