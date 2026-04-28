@@ -7,11 +7,34 @@
 #include <assert.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <limits.h>
+#include <stdarg.h>
 #include <limits.h>
 #include <sys/types.h>
 
 #include "bun.h"
 
+static int safe_fseeko(FILE *file, u64 offset, int whence)
+{
+    if (offset > LONG_MAX) {
+        return -1;
+    }
+
+    return fseek(file, (long)offset, whence);
+}
+
+int bun_add_violation(BunParseContext *ctx, const char *fmt, ...)
+{
+    (void)ctx;
+
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    fprintf(stderr, "\n");
+    va_end(args);
+    return 0;
+}
 /**
  * Example helper: convert 4 bytes in `buf`, positioned at `offset`,
  * into a little-endian u32.
@@ -111,8 +134,8 @@ static bun_result_t bun_validate_rle(BunParseContext *ctx, u32 i, const BunAsset
       return BUN_MALFORMED;
   }
 
-  if (fseek(ctx->file, (long)abs_data_offset, SEEK_SET) != 0) {
-      return BUN_ERR_IO;
+  if (safe_fseeko(ctx->file, abs_data_offset, SEEK_SET) != 0) {
+    return BUN_ERR_IO;
   }
 
   // read in small chunks so we dont load the whole thing into memory
@@ -383,7 +406,10 @@ bun_result_t bun_open(const char *path, BunParseContext *ctx) {
   return BUN_OK;
 }
 
-bun_result_t bun_parse_header(BunParseContext *ctx) {
+bun_result_t bun_parse_header(BunParseContext *ctx, BunHeader *header) {
+  if (ctx == NULL || header == NULL) {
+    return BUN_ERR_USAGE;
+  }
   u8 buf[BUN_HEADER_SIZE];
   bun_result_t result = BUN_OK;
 
@@ -566,11 +592,12 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
     }
   }
 
-  if (result == BUN_OK) {
+if (result == BUN_OK) {
     ctx->header_parsed = 1;
-  }
+    *header = ctx->header;
+}
 
-  return result;
+return result;
 }
 
 bun_result_t bun_parse_assets(BunParseContext *ctx) {
