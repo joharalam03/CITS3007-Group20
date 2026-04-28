@@ -487,7 +487,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
     }
   }
 
-  if (asset_end > ctx->file_size){
+  if (asset_end > (u64) ctx->file_size){
      if (bun_add_violation(ctx, "Asset table exceeds file size") != 0){
         return BUN_ERR_NOMEM;
     }
@@ -508,7 +508,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
     }
   }
 
-  if (string_table_end > ctx->file_size){
+  if (string_table_end > (u64) ctx->file_size){
      if (bun_add_violation(ctx, "String table exceeds file size") != 0){
         return BUN_ERR_NOMEM;
     }
@@ -529,7 +529,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
     }
   }
 
-  if (data_section_end > ctx->file_size){
+  if (data_section_end > (u64) ctx->file_size){
     if (bun_add_violation(ctx, "Data section exceeds file size") != 0){
         return BUN_ERR_NOMEM;
     }
