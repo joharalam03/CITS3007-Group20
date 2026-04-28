@@ -194,6 +194,159 @@ RECORD_SIZE = struct.calcsize(_RECORD_FMT)
 assert HEADER_SIZE == 60, f"Unexpected record size: {HEADER_SIZE}"
 assert RECORD_SIZE == 48, f"Unexpected record size: {RECORD_SIZE}"
 
+def make_asset_count_zero():
+    out_path = Path("edge_01_zero_assets.bun")
+
+    asset_count = 0
+
+    asset_table_offset  = _align4(HEADER_SIZE)
+    string_table_offset = asset_table_offset
+    string_table_size   = 0
+    data_section_offset = string_table_offset
+    data_section_size   = 0
+
+    with open(out_path, "wb") as f:
+        write_header(
+            f,
+            asset_count=asset_count,
+            asset_table_offset=asset_table_offset,
+            string_table_offset=string_table_offset,
+            string_table_size=string_table_size,
+            data_section_offset=data_section_offset,
+            data_section_size=data_section_size,
+        )
+
+    print(f"Wrote {out_path}")
+
+def make_asset_count_large():
+    out_path = Path("edge_02_large_asset_count.bun")
+
+    asset_count = 1_000_000
+
+    asset_table_offset  = _align4(HEADER_SIZE)
+    string_table_offset = asset_table_offset
+    string_table_size   = 0
+    data_section_offset = string_table_offset
+    data_section_size   = 0
+
+    with open(out_path, "wb") as f:
+        write_header(
+            f,
+            asset_count=asset_count,
+            asset_table_offset=asset_table_offset,
+            string_table_offset=string_table_offset,
+            string_table_size=string_table_size,
+            data_section_offset=data_section_offset,
+            data_section_size=data_section_size,
+        )
+
+    print(f"Wrote {out_path}")
+
+def make_asset_count_overflow():
+    out_path = Path("edge_03_overflow_asset_table.bun")
+
+    asset_count = (2**32 // 48) + 1  
+
+    asset_table_offset  = _align4(HEADER_SIZE)
+    string_table_offset = asset_table_offset
+    string_table_size   = 0
+    data_section_offset = string_table_offset
+    data_section_size   = 0
+
+    with open(out_path, "wb") as f:
+        write_header(
+            f,
+            asset_count=asset_count,
+            asset_table_offset=asset_table_offset,
+            string_table_offset=string_table_offset,
+            string_table_size=string_table_size,
+            data_section_offset=data_section_offset,
+            data_section_size=data_section_size,
+        )
+
+    print(f"Wrote {out_path}")
+
+def make_max_name():
+    out_path = Path("edge_04_max_name.bun")
+
+    asset_name = b"A" * 256  
+    payload = b"data"
+    asset_count = 1
+
+    asset_table_offset  = _align4(HEADER_SIZE)
+    string_table_offset = _align4(asset_table_offset + RECORD_SIZE)
+    string_table_size   = _align4(len(asset_name))
+    data_section_offset = _align4(string_table_offset + len(asset_name))
+    data_section_size   = _align4(len(payload))
+
+    with open(out_path, "wb") as f:
+        write_header(
+            f,
+            asset_count=asset_count,
+            asset_table_offset=asset_table_offset,
+            string_table_offset=string_table_offset,
+            string_table_size=string_table_size,
+            data_section_offset=data_section_offset,
+            data_section_size=data_section_size,
+        )
+
+        write_asset_record(
+            f,
+            name_offset=0,
+            name_length=len(asset_name),
+            data_offset=0,
+            data_size=len(payload),
+        )
+
+        f.write(asset_name)
+        write_padding(f, string_table_size - len(asset_name), "name padding")
+        f.write(payload)
+        write_padding(f, data_section_size - len(payload), "payload padding")
+
+    print(f"Wrote {out_path}")
+
+def make_rle_255():
+    out_path = Path("edge_05_rle_255.bun")
+
+    asset_name = b"rle"
+    rle_data = bytes([255, ord("A")])  
+    asset_count = 1
+
+    asset_table_offset  = _align4(HEADER_SIZE)
+    string_table_offset = _align4(asset_table_offset + RECORD_SIZE)
+    string_table_size   = _align4(len(asset_name))
+    data_section_offset = _align4(string_table_offset + len(asset_name))
+    data_section_size   = _align4(len(rle_data))
+
+    with open(out_path, "wb") as f:
+        write_header(
+            f,
+            asset_count=asset_count,
+            asset_table_offset=asset_table_offset,
+            string_table_offset=string_table_offset,
+            string_table_size=string_table_size,
+            data_section_offset=data_section_offset,
+            data_section_size=data_section_size,
+        )
+
+        write_asset_record(
+            f,
+            name_offset=0,
+            name_length=len(asset_name),
+            data_offset=0,
+            data_size=len(rle_data),
+            uncompressed_size=255,
+            compression=COMPRESS_RLE,
+        )
+
+        f.write(asset_name)
+        write_padding(f, string_table_size - len(asset_name), "name padding")
+        f.write(rle_data)
+        write_padding(f, data_section_size - len(rle_data), "payload padding")
+
+    print(f"Wrote {out_path}")
+
+
 def main():
     """
     Write a minimal valid BUN file with a single uncompressed asset.
@@ -268,4 +421,10 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
+
+    make_asset_count_zero()
+    make_asset_count_large()
+    make_asset_count_overflow()
+    make_max_name()
+    make_rle_255()

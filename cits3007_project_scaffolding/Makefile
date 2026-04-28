@@ -14,7 +14,7 @@ LIB     = bun_parse.c
 MAIN    = main.c
 TEST    = tests/test_bun.c
 
-.PHONY: all test clean
+.PHONY: all test test-asan lint clean
 
 all: bun_parser
 
@@ -28,6 +28,12 @@ test: tests/test_runner
 
 tests/test_runner: $(TEST) $(LIB)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $$(pkg-config --cflags --libs check)
+
+test-asan: CFLAGS += -fsanitize=address,undefined -fno-omit-frame-pointer -g
+test-asan: clean test
+
+lint:
+	cppcheck --enable=all --suppress=missingIncludeSystem .
 
 clean:
 	-rm bun_parser tests/test_runner *.o
