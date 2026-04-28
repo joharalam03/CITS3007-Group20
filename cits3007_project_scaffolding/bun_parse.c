@@ -241,6 +241,7 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
 
     if (fread(name_buf, 1, (size_t)r->name_length, ctx->file) != (size_t)r->name_length) {
         if (bun_add_violation(ctx, "asset %u: name read error", i) != 0) {
+          free(name_buf);
           return BUN_ERR_NOMEM;
         }
         free(name_buf);
@@ -252,6 +253,7 @@ static bun_result_t validate_record(BunParseContext *ctx, u32 i, const BunAssetR
             (unsigned char)name_buf[j] > 0x7E) {
 
             if (bun_add_violation(ctx, "asset %u: non-printable character in name", i) != 0) {
+              free(name_buf);
               return BUN_ERR_NOMEM;
             }
 
