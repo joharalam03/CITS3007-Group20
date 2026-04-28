@@ -401,7 +401,9 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
   // was the exact problem? Where can we put details about the
   // exact validation problem that occurred?)
   if (ctx->file_size < (long)BUN_HEADER_SIZE) {
-    bun_add_violation(ctx, "File length was too small");
+    if (bun_add_violation(ctx, "File length was too small") != 0) {
+        return BUN_ERR_NOMEM;
+    }
     return BUN_MALFORMED;
   }
 
@@ -533,7 +535,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
     }
 
   u64 data_section_start = h->data_section_offset;
-  u64 data_section_end = data_section_start + h->data_section_size;
+  u64 data_section_end = 0;
 
   if (h->data_section_size > UINT64_MAX - data_section_start) {
         if (bun_add_violation(ctx, "Data section range overflow") != 0) {
