@@ -4,9 +4,30 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
-
+#include <limits.h>
+#include <stdarg.h>
 #include "bun.h"
 
+static int safe_fseeko(FILE *file, u64 offset, int whence)
+{
+    if (offset > LONG_MAX) {
+        return -1;
+    }
+
+    return fseek(file, (long)offset, whence);
+}
+
+int bun_add_violation(BunParseContext *ctx, const char *fmt, ...)
+{
+    (void)ctx;
+
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    fprintf(stderr, "\n");
+    va_end(args);
+    return 0;
+}
 /**
  * Example helper: convert 4 bytes in `buf`, positioned at `offset`,
  * into a little-endian u32.
@@ -296,7 +317,10 @@ bun_result_t bun_open(const char *path, BunParseContext *ctx) {
   return BUN_OK;
 }
 
-bun_result_t bun_parse_header(BunParseContext *ctx) {
+bun_result_t bun_parse_header(BunParseContext *ctx, BunHeader *header) {
+  if (ctx == NULL || header == NULL) {
+    return BUN_ERR_USAGE;
+  }
   u8 buf[BUN_HEADER_SIZE];
   // our file is far too short, and cannot be valid!
   // (query: how do we let `main` know that "file was too short"
@@ -416,7 +440,8 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
     return BUN_MALFORMED;
   }
 
-  ctx->header_parsed = 1;   
+  ctx->header_parsed = 1;
+  *header = ctx->header;   
   return BUN_OK;
 }
 
