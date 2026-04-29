@@ -144,7 +144,8 @@ The parser follows a “validate everything, but continue where possible” appr
 This ensures that the caller receives as much diagnostic information as possible. Fatal errors such as I/O failure or memory allocation failure stop parsing immediately because continuing would be unsafe or unreliable.
 
 [Validate_RLE]
-For RLE-compressed assets, we chose to validate the compressed stream without a pre-mature full compression into memory. This design is implemented in `bun_validate_rle()`, which uses a fixed stack buffer:
+
+For RLE-compressed assets, we chose to validate the compressed stream without a premature full decompression into memory. This design is implemented in `bun_validate_rle()`, which uses a fixed stack buffer:
 
 u8 buf[4096];
 
@@ -161,13 +162,7 @@ The final total is then checked against the given metadata:
 
 if (actual_uncompressed != r->uncompressed_size)
 
-This keeps memory usage within limits and avoids decompression-bomb style behaviour.
-
-We also introduced a sanity cap before allocating the asset record table:
-
-if (ctx->record_count > 1000000)
-
-This prevents excessive memory allocation from a malformed file declares an unreasonable number of assets.
+This keeps memory usage bounded and helps prevent decompression-bomb style behaviour.
 
 ## 3. Libraries Used
 
