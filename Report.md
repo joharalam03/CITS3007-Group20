@@ -90,7 +90,7 @@ The parser uses these exit codes
 |---:|---|
 | 0 | BUN_OK — file parsed successfully |
 | 1 | BUN_MALFORMED— file violates the BUN specification |
-| 2 | BUN_UNSUPPORTEDrep — file uses an unsupported feature, such as zlib compression, unsupported version, non-zero checksum, or unsupported flag bits |
+| 2 | BUN_UNSUPPORTED— file uses an unsupported feature, such as zlib compression, unsupported version, non-zero checksum, or unsupported flag bits |
 | 3 | BUN_ERR_IO — file could not be opened or read |
 | 4 | BUN_ERR_USAGE — wrong number of command-line arguments |
 | 5 | BUN_ERR_NOMEM — memory allocation failed |
@@ -312,3 +312,11 @@ All multi-byte fields read from the binary file are converted using little-endia
 
 ## 7. Challenges
 The main logistical challenge we faced during this phase was the relatively short development deadline, which required good coordination and prioritisation of tasks. To manage this, we combined both in-person and online meetings to accommodate different schedules and ensure consistent communication and progress across the group. We also maintained good communication through MS Teams and used GitHub efficiently for version control, pull requests, and collaboration. This workflow helped us resolve issues more quickly, stay aligned on design decisions, and integrate each other’s work more smoothly despite the time constraints.
+
+### bun_parse_header function
+
+For header parsing, the main challange was the number of layout and validity rules the BUN spec expects us to enforce without turning the function into a wall of if statements. The header has several offsets and sizes, and we have to check alignment, file bounds, and non-overlap between sections. The hard part is keeping those checks complete and readable at the same time, so we leaned on careful ordering of validations and lots of edge-case testing.
+
+Another challange was 64-bit range arithmetic. Fields like data_section_offset and string_table_size are u64, so we treat offset + size as unsafe until we have proven it cannot overflow. That means we compute section ends with explicit overflow guards and only use the resulting ranges for overlap and bounds checks if those computations are valid.
+
+
