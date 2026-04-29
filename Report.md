@@ -143,7 +143,31 @@ The parser follows a “validate everything, but continue where possible” appr
    - `BUN_UNSUPPORTED` takes priority over `BUN_OK`
 This ensures that the caller receives as much diagnostic information as possible. Fatal errors such as I/O failure or memory allocation failure stop parsing immediately because continuing would be unsafe or unreliable.
 
+[Validate_RLE]
+For RLE-compressed assets, we chose to validate the compressed stream without a pre-mature full compression into memory. This design is implemented in `bun_validate_rle()`, which uses a fixed stack buffer:
 
+u8 buf[4096];
+
+and processes the payload incrementally using:
+
+while (remaining > 0) { ... fread(...) ... }
+
+Rather than creating an output buffer, the function only tracks the expanded size numerically:
+
+u64 actual_uncompressed = 0;
+actual_uncompressed += count;
+
+The final total is then checked against the given metadata:
+
+if (actual_uncompressed != r->uncompressed_size)
+
+This keeps memory usage within limits and avoids decompression-bomb style behaviour.
+
+We also introduced a sanity cap before allocating the asset record table:
+
+if (ctx->record_count > 1000000)
+
+This prevents excessive memory allocation from a malformed file declares an unreasonable number of assets.
 
 ## 3. Libraries Used
 
@@ -161,13 +185,33 @@ The implementation uses only standard C and POSIX-compatible libraries.
 POSIX functions fseeko() and ftello() were used to safely support large file offsets.
 
 ## 4. Tools Used
-The following tools were used during development:
+[Validate_RLE]
+Compiler warnings were used throughout development of the project. It was also compiled with:
 
-- Visual Studio Code for editing and debugging
-- Git and GitHub for version control, pull requests, and collaboration
-- macOS Terminal for compiling and running tests
-- GCC / Clang compiler with warnings enabled
-- Check unit testing framework supplied in the scaffold
+gcc -std=c11 -Wall -Wextra -Wpedantic
+
+These warnings exposed critical issues during implementation, including:
+
+1. Function signature mismatch:
+
+bun_parse_header(BunParseContext *ctx);
+
+vs.
+
+bun_parse_header(BunParseContext *ctx, BunHeader *header);
+
+This caused compilation failure and was fixed by making the declaration and definition uniform.
+
+2. Signed/unsigned comparison warnings when validating offsets against `ctx->file_size`.
+
+3. Comparisons involving `SIZE_MAX` and `u32` values, which were removed after review.
+
+The supplied unit tests were run using:
+
+make test
+
+These tests identified missing fixture files (`BUN_ERR_IO`), incorrect header parsing return values, and regression issues after code changes.
+
 
 ### GCC Warning Flags
 
