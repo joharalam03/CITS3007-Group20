@@ -124,12 +124,50 @@ Memory safety is enforced through an explicit sanity limit on asset_count (e.g. 
 
 To handle file positioning safely across platforms, a `safe_fseeko` helper function is used instead of direct `fseek` calls when working with 64-bit offsets. This prevents truncation of large file offsets on systems where `long` is 32-bit and ensures consistent behaviour when seeking within large files.
 
+For header parsing, we decode the 60-byte BUN header manually from a byte buffer using little-endian helper functions rather than casting the raw bytes directly into a BunHeader struct. This avoids relying on compiler struct padding, alignment, or host endianness.
+
+We treat files smaller than BUN_HEADER_SIZE as malformed, because there is not enough data to contain a valid header. However, if the header cannot be read after the file has already passed the size check, this is treated as an I/O error rather than a format violation.
+
+The parser only marks ctx->header_parsed after all header checks pass with BUN_OK. This prevents later asset parsing from running when the section offsets, sizes, or layout are unsafe.
+
+Header validation checks alignment for the asset table offset, string table offset, string table size, data section offset, and data section size. These fields must be 4-byte aligned, so any misalignment is treated as BUN_MALFORMED.
+
+The reserved header field is parsed and displayed, but it is not currently treated as an error. We assume it is informational or reserved for future use unless the specification requires it to be zero.
+
+The asset table size is calculated from asset_count * BUN_ASSET_RECORD_SIZE. Since asset_count is a 32-bit value and the record size is fixed at 48 bytes, this multiplication cannot overflow a 64-bit integer. The later addition of asset_table_offset + asset_table_size is still checked for overflow before use. The header parser allows zero-asset files. In that case, the asset table range has size zero, and later asset parsing simply records zero assets.
+
+The implementation does not require the asset table, string table, and data section to appear in canonical order. Instead, each section is validated using its offset and size, and section overlap checks are used to reject unsafe layouts. Section overlap checks are only meaningful after the section end offsets have been calculated safely. Therefore, if any section range overflows, the parser avoids relying on those computed end offsets for overlap validation.
+
 The parser follows a “validate everything, but continue where possible” approach. Each record is validated independently using validate_record, and violations are accumulated using bun_add_violation. Rather than stopping at the first error, the parser attempts to process all records and returns a final result based on severity:
    - `BUN_MALFORMED` takes priority over `BUN_UNSUPPORTED`
    - `BUN_UNSUPPORTED` takes priority over `BUN_OK`
-This ensures that the caller receives as much diagnostic information as possible.
+This ensures that the caller receives as much diagnostic information as possible. Fatal errors such as I/O failure or memory allocation failure stop parsing immediately because continuing would be unsafe or unreliable.
 
+[Validate_RLE]
+For RLE-compressed assets, we chose to validate the compressed stream without a pre-mature full compression into memory. This design is implemented in `bun_validate_rle()`, which uses a fixed stack buffer:
 
+u8 buf[4096];
+
+and processes the payload incrementally using:
+
+while (remaining > 0) { ... fread(...) ... }
+
+Rather than creating an output buffer, the function only tracks the expanded size numerically:
+
+u64 actual_uncompressed = 0;
+actual_uncompressed += count;
+
+The final total is then checked against the given metadata:
+
+if (actual_uncompressed != r->uncompressed_size)
+
+This keeps memory usage within limits and avoids decompression-bomb style behaviour.
+
+We also introduced a sanity cap before allocating the asset record table:
+
+if (ctx->record_count > 1000000)
+
+This prevents excessive memory allocation from a malformed file declares an unreasonable number of assets.
 
 ## 3. Libraries Used
 
@@ -147,13 +185,33 @@ The implementation uses only standard C and POSIX-compatible libraries.
 POSIX functions fseeko() and ftello() were used to safely support large file offsets.
 
 ## 4. Tools Used
-The following tools were used during development:
+[Validate_RLE]
+Compiler warnings were used throughout development of the project. It was also compiled with:
 
-- Visual Studio Code for editing and debugging
-- Git and GitHub for version control, pull requests, and collaboration
-- macOS Terminal for compiling and running tests
-- GCC / Clang compiler with warnings enabled
-- Check unit testing framework supplied in the scaffold
+gcc -std=c11 -Wall -Wextra -Wpedantic
+
+These warnings exposed critical issues during implementation, including:
+
+1. Function signature mismatch:
+
+bun_parse_header(BunParseContext *ctx);
+
+vs.
+
+bun_parse_header(BunParseContext *ctx, BunHeader *header);
+
+This caused compilation failure and was fixed by making the declaration and definition uniform.
+
+2. Signed/unsigned comparison warnings when validating offsets against `ctx->file_size`.
+
+3. Comparisons involving `SIZE_MAX` and `u32` values, which were removed after review.
+
+The supplied unit tests were run using:
+
+make test
+
+These tests identified missing fixture files (`BUN_ERR_IO`), incorrect header parsing return values, and regression issues after code changes.
+
 
 ### GCC Warning Flags
 
