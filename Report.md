@@ -124,10 +124,24 @@ Memory safety is enforced through an explicit sanity limit on asset_count (e.g. 
 
 To handle file positioning safely across platforms, a `safe_fseeko` helper function is used instead of direct `fseek` calls when working with 64-bit offsets. This prevents truncation of large file offsets on systems where `long` is 32-bit and ensures consistent behaviour when seeking within large files.
 
+For header parsing, we decode the 60-byte BUN header manually from a byte buffer using little-endian helper functions rather than casting the raw bytes directly into a BunHeader struct. This avoids relying on compiler struct padding, alignment, or host endianness.
+
+We treat files smaller than BUN_HEADER_SIZE as malformed, because there is not enough data to contain a valid header. However, if the header cannot be read after the file has already passed the size check, this is treated as an I/O error rather than a format violation.
+
+The parser only marks ctx->header_parsed after all header checks pass with BUN_OK. This prevents later asset parsing from running when the section offsets, sizes, or layout are unsafe.
+
+Header validation checks alignment for the asset table offset, string table offset, string table size, data section offset, and data section size. These fields must be 4-byte aligned, so any misalignment is treated as BUN_MALFORMED.
+
+The reserved header field is parsed and displayed, but it is not currently treated as an error. We assume it is informational or reserved for future use unless the specification requires it to be zero.
+
+The asset table size is calculated from asset_count * BUN_ASSET_RECORD_SIZE. Since asset_count is a 32-bit value and the record size is fixed at 48 bytes, this multiplication cannot overflow a 64-bit integer. The later addition of asset_table_offset + asset_table_size is still checked for overflow before use. The header parser allows zero-asset files. In that case, the asset table range has size zero, and later asset parsing simply records zero assets.
+
+The implementation does not require the asset table, string table, and data section to appear in canonical order. Instead, each section is validated using its offset and size, and section overlap checks are used to reject unsafe layouts. Section overlap checks are only meaningful after the section end offsets have been calculated safely. Therefore, if any section range overflows, the parser avoids relying on those computed end offsets for overlap validation.
+
 The parser follows a “validate everything, but continue where possible” approach. Each record is validated independently using validate_record, and violations are accumulated using bun_add_violation. Rather than stopping at the first error, the parser attempts to process all records and returns a final result based on severity:
    - `BUN_MALFORMED` takes priority over `BUN_UNSUPPORTED`
    - `BUN_UNSUPPORTED` takes priority over `BUN_OK`
-This ensures that the caller receives as much diagnostic information as possible.
+This ensures that the caller receives as much diagnostic information as possible. Fatal errors such as I/O failure or memory allocation failure stop parsing immediately because continuing would be unsafe or unreliable.
 
 
 

@@ -450,9 +450,11 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
 
   if (h->version_major != 1 || h->version_minor != 0){
     if (bun_add_violation(ctx, "Version %d.%d unsupported", h->version_major, h->version_minor) != 0){
-      return BUN_ERR_NOMEM;
+        return BUN_ERR_NOMEM;
     }
-    result = BUN_UNSUPPORTED;
+    if (result != BUN_MALFORMED) {
+        result = BUN_UNSUPPORTED;
+    }
   }
 
   if ((h->asset_table_offset & 3) != 0){
@@ -500,7 +502,7 @@ bun_result_t bun_parse_header(BunParseContext *ctx) {
     }
   }
 
-   u64 asset_start = h->asset_table_offset;
+    u64 asset_start = h->asset_table_offset;
     u64 asset_table_size = (u64)h->asset_count * BUN_ASSET_RECORD_SIZE;
     u64 asset_end = 0;
 
@@ -828,13 +830,18 @@ void bun_print_summary(const BunParseContext *ctx, FILE *out)
 }
 
 bun_result_t bun_close(BunParseContext *ctx) {
-  assert(ctx->file);
+ 
+    if (ctx == NULL || ctx->file == NULL) {
+        return BUN_ERR_USAGE;
+    }
 
-  int res = fclose(ctx->file);
-  if (res) {
-    return BUN_ERR_IO;
-  } else {
+    assert(ctx->file);
+
+    if (fclose(ctx->file) != 0) {
+        ctx->file = NULL;
+        return BUN_ERR_IO;
+    }
+
     ctx->file = NULL;
     return BUN_OK;
-  }
 }
