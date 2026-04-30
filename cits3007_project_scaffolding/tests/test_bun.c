@@ -332,6 +332,23 @@ START_TEST(test_rle_truncated) {
 }
 END_TEST
 
+START_TEST(test_rle_odd_size) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("invalid/17-rle-odd-size.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_MALFORMED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
 START_TEST(test_valid_binary_asset) {
     BunParseContext ctx = {0};
 
@@ -390,6 +407,22 @@ START_TEST(test_valid_rle_asset) {
 }
 END_TEST
 
+START_TEST(test_valid_rle_large_stream) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("valid/07-rle-large-stream.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
 START_TEST(test_violation_grows_capacity) {
     BunParseContext ctx = {0};
 
@@ -412,6 +445,267 @@ START_TEST(open_missing_file){
 END_TEST
 
 // Assemble a test suite from our tests
+
+START_TEST(test_print_summary_empty_file) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("valid/01-empty.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    FILE *out = tmpfile();
+    ck_assert_ptr_nonnull(out);
+
+    bun_print_summary(&ctx, out);
+
+    fclose(out);
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_print_summary_binary_asset) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("valid/04-binary-asset.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    FILE *out = tmpfile();
+    ck_assert_ptr_nonnull(out);
+
+    bun_print_summary(&ctx, out);
+
+    fclose(out);
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_print_summary_valid_one_asset) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("valid/03-one-asset.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    FILE *out = tmpfile();
+    ck_assert_ptr_nonnull(out);
+
+    bun_print_summary(&ctx, out);
+
+    fclose(out);
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_parse_assets_zero_assets) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("valid/01-empty.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+    ck_assert_ptr_null(ctx.records);
+    ck_assert_uint_eq(ctx.record_count, 0);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_parse_assets_without_header) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_ERR_USAGE);
+}
+END_TEST
+
+START_TEST(test_zlib_unsupported) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("invalid/18-zlib-unsupported.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_UNSUPPORTED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_invalid_compression_unsupported) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("invalid/19-invalid-compression.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_UNSUPPORTED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_nonzero_checksum_unsupported) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("invalid/20-nonzero-checksum.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_UNSUPPORTED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_unknown_flags_unsupported) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("invalid/21-unknown-flags.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_UNSUPPORTED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_print_summary_null_args) {
+    FILE *out = tmpfile();
+    ck_assert_ptr_nonnull(out);
+
+    bun_print_summary(NULL, out);
+    bun_print_summary(NULL, NULL);
+
+    fclose(out);
+}
+END_TEST
+
+START_TEST(test_print_summary_null_out) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("valid/01-empty.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    bun_print_summary(&ctx, NULL);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_bun_open_missing_file) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open("tests/fixtures/does-not-exist.bun", &ctx);
+    ck_assert_int_eq(r, BUN_ERR_IO);
+}
+END_TEST
+
+START_TEST(test_many_asset_violations_growth) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("invalid/22-many-asset-violations.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_MALFORMED);
+
+    ck_assert(ctx.violation_count >= 10);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_print_summary_long_name) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("valid/08-long-name.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    FILE *out = tmpfile();
+    ck_assert_ptr_nonnull(out);
+
+    bun_print_summary(&ctx, out);
+
+    fclose(out);
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+START_TEST(test_print_summary_empty_data) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("valid/09-empty-data-asset.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    FILE *out = tmpfile();
+    ck_assert_ptr_nonnull(out);
+
+    bun_print_summary(&ctx, out);
+
+    fclose(out);
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
 
 static Suite *bun_suite(void) {
     Suite *s = suite_create("bun-suite");
@@ -441,9 +735,26 @@ static Suite *bun_suite(void) {
     tcase_add_test(tc_assets, test_rle_zero_count);
     tcase_add_test(tc_assets, test_rle_bomb);
     tcase_add_test(tc_assets, test_rle_truncated);
+    tcase_add_test(tc_assets, test_rle_odd_size);
     tcase_add_test(tc_assets, test_valid_binary_asset);
     tcase_add_test(tc_assets, test_valid_multi_assets_slack);
     tcase_add_test(tc_assets, test_valid_rle_asset);
+    tcase_add_test(tc_assets, test_valid_rle_large_stream);
+    tcase_add_test(tc_assets, test_print_summary_valid_one_asset);
+    tcase_add_test(tc_assets, test_print_summary_binary_asset);
+    tcase_add_test(tc_assets, test_parse_assets_zero_assets);
+    tcase_add_test(tc_assets, test_print_summary_empty_file);
+    tcase_add_test(tc_assets, test_parse_assets_without_header);
+    tcase_add_test(tc_assets, test_zlib_unsupported);
+    tcase_add_test(tc_assets, test_invalid_compression_unsupported);
+    tcase_add_test(tc_assets, test_nonzero_checksum_unsupported);
+    tcase_add_test(tc_assets, test_unknown_flags_unsupported);
+    tcase_add_test(tc_assets, test_print_summary_null_args);
+    tcase_add_test(tc_assets, test_print_summary_null_out);
+    tcase_add_test(tc_assets, test_bun_open_missing_file);
+    tcase_add_test(tc_assets, test_many_asset_violations_growth);
+    tcase_add_test(tc_assets, test_print_summary_long_name);
+    tcase_add_test(tc_assets, test_print_summary_empty_data);
     suite_add_tcase(s, tc_assets);
 
     // Custom tests
@@ -454,6 +765,7 @@ static Suite *bun_suite(void) {
 
     return s;
 }
+
 
 int main(void) {
     Suite   *s  = bun_suite();

@@ -24,6 +24,7 @@ bun_parser: $(MAIN) $(LIB)
 # The test binary links the same source files, but not main.c (which has its
 # own main()). libcheck provides the test runner's main() instead.
 test: tests/test_runner
+	python3 bunfile_generator.py
 	./tests/test_runner
 
 tests/test_runner: $(TEST) $(LIB)
