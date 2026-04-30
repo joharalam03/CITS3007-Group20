@@ -346,6 +346,191 @@ def make_rle_255():
 
     print(f"Wrote {out_path}")
 
+def make_one_asset_fixture(
+    out_path: Path,
+    *,
+    asset_name: bytes = b"bad",
+    payload: bytes = b"AAAA",
+    record_data_size: int | None = None,
+    uncompressed_size: int = 0,
+    compression: int = COMPRESS_NONE,
+    checksum: int = 0,
+    flags: int = 0,
+) -> None:
+    """
+    Generate a simple one-asset BUN file for tests.
+
+    record_data_size lets us deliberately make the asset record's data_size
+    differ from the actual data section size, which is useful for malformed tests.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    asset_count = 1
+
+    asset_table_offset = _align4(HEADER_SIZE)
+    string_table_offset = _align4(asset_table_offset + RECORD_SIZE)
+    string_table_size = _align4(len(asset_name))
+    data_section_offset = _align4(string_table_offset + string_table_size)
+    data_section_size = _align4(len(payload))
+
+    if record_data_size is None:
+        record_data_size = len(payload)
+
+    with open(out_path, "wb") as f:
+        write_header(
+            f,
+            asset_count=asset_count,
+            asset_table_offset=asset_table_offset,
+            string_table_offset=string_table_offset,
+            string_table_size=string_table_size,
+            data_section_offset=data_section_offset,
+            data_section_size=data_section_size,
+        )
+
+        write_asset_record(
+            f,
+            name_offset=0,
+            name_length=len(asset_name),
+            data_offset=0,
+            data_size=record_data_size,
+            uncompressed_size=uncompressed_size,
+            compression=compression,
+            checksum=checksum,
+            flags=flags,
+        )
+
+        f.write(asset_name)
+        write_padding(f, string_table_size - len(asset_name), "string table padding")
+        f.write(payload)
+        write_padding(f, data_section_size - len(payload), "data section padding")
+
+    print(f"Wrote {out_path}")
+
+
+def make_many_asset_violations_fixture() -> None:
+    """
+    Generate a malformed file with many asset records that each have an empty name.
+    This is useful for testing violation-list growth.
+    """
+    out_path = Path("tests/fixtures/edge/edge_12_many_asset_violations.bun")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    asset_count = 10
+    payload = b"AAAA"
+    string_table = b"bad\x00"
+
+    asset_table_offset = _align4(HEADER_SIZE)
+    asset_table_size = asset_count * RECORD_SIZE
+    string_table_offset = _align4(asset_table_offset + asset_table_size)
+    string_table_size = _align4(len(string_table))
+    data_section_offset = _align4(string_table_offset + string_table_size)
+    data_section_size = _align4(len(payload))
+
+    with open(out_path, "wb") as f:
+        write_header(
+            f,
+            asset_count=asset_count,
+            asset_table_offset=asset_table_offset,
+            string_table_offset=string_table_offset,
+            string_table_size=string_table_size,
+            data_section_offset=data_section_offset,
+            data_section_size=data_section_size,
+        )
+
+        for _ in range(asset_count):
+            write_asset_record(
+                f,
+                name_offset=0,
+                name_length=0,  # deliberately invalid
+                data_offset=0,
+                data_size=len(payload),
+                uncompressed_size=0,
+                compression=COMPRESS_NONE,
+            )
+
+        f.write(string_table)
+        write_padding(f, string_table_size - len(string_table), "string table padding")
+        f.write(payload)
+        write_padding(f, data_section_size - len(payload), "data section padding")
+
+    print(f"Wrote {out_path}")
+
+
+def make_extra_test_fixtures() -> None:
+    """
+    Generate additional edge-case fixtures used by tests/test_bun.c.
+    These files are generated locally and should not be committed.
+    """
+    # Invalid RLE: asset record claims odd data_size, but section remains aligned.
+    make_one_asset_fixture(
+        Path("tests/fixtures/edge/edge_06_rle_odd_size.bun"),
+        asset_name=b"odd",
+        payload=bytes([1, ord("A"), 1, 0]),
+        record_data_size=3,
+        uncompressed_size=2,
+        compression=COMPRESS_RLE,
+    )
+
+    # Valid RLE file larger than the 4096-byte RLE buffer.
+    rle_large = bytes([1, ord("A")]) * 3000
+    make_one_asset_fixture(
+        Path("tests/fixtures/edge/edge_07_rle_large_stream.bun"),
+        asset_name=b"large",
+        payload=rle_large,
+        record_data_size=len(rle_large),
+        uncompressed_size=3000,
+        compression=COMPRESS_RLE,
+    )
+
+    # compression == 2: zlib unsupported.
+    make_one_asset_fixture(
+        Path("tests/fixtures/edge/edge_08_zlib_unsupported.bun"),
+        compression=COMPRESS_ZLIB,
+        uncompressed_size=4,
+    )
+
+    # compression > 2: invalid/unsupported compression.
+    make_one_asset_fixture(
+        Path("tests/fixtures/edge/edge_09_invalid_compression.bun"),
+        compression=5,
+        uncompressed_size=4,
+    )
+
+    # non-zero checksum unsupported.
+    make_one_asset_fixture(
+        Path("tests/fixtures/edge/edge_10_nonzero_checksum.bun"),
+        checksum=1234,
+    )
+
+    # unknown flag bit unsupported.
+    make_one_asset_fixture(
+        Path("tests/fixtures/edge/edge_11_unknown_flags.bun"),
+        flags=0x80000000,
+    )
+
+    # many violations to exercise violation storage growth.
+    make_many_asset_violations_fixture()
+
+    # Valid long name for summary truncation.
+    make_one_asset_fixture(
+        Path("tests/fixtures/edge/edge_13_long_name.bun"),
+        asset_name=b"A" * 80,
+        payload=b"DATA",
+        record_data_size=4,
+        uncompressed_size=0,
+        compression=COMPRESS_NONE,
+    )
+
+    # Valid asset with empty payload.
+    make_one_asset_fixture(
+        Path("tests/fixtures/edge/edge_14_empty_data_asset.bun"),
+        asset_name=b"empty",
+        payload=b"",
+        record_data_size=0,
+        uncompressed_size=0,
+        compression=COMPRESS_NONE,
+    )
+
 
 def main():
     """
@@ -428,3 +613,6 @@ if __name__ == "__main__":
     make_asset_count_overflow()
     make_max_name()
     make_rle_255()
+
+    make_extra_test_fixtures()
+

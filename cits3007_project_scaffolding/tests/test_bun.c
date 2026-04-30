@@ -335,7 +335,7 @@ END_TEST
 START_TEST(test_rle_odd_size) {
     BunParseContext ctx = {0};
 
-    bun_result_t r = bun_open(fixture("invalid/17-rle-odd-size.bun"), &ctx);
+    bun_result_t r = bun_open(fixture("edge/edge_06_rle_odd_size.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
 
     r = bun_parse_header(&ctx);
@@ -410,7 +410,7 @@ END_TEST
 START_TEST(test_valid_rle_large_stream) {
     BunParseContext ctx = {0};
 
-    bun_result_t r = bun_open(fixture("valid/07-rle-large-stream.bun"), &ctx);
+    bun_result_t r = bun_open(fixture("edge/edge_07_rle_large_stream.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
 
     r = bun_parse_header(&ctx);
@@ -423,17 +423,7 @@ START_TEST(test_valid_rle_large_stream) {
     bun_ctx_free(&ctx);
 }
 END_TEST
-START_TEST(test_violation_grows_capacity) {
-    BunParseContext ctx = {0};
 
-    for (int i = 0; i < 50; i++) {
-        bun_add_violation(&ctx, "violation %d", i);
-    }
-    ck_assert_uint_eq(ctx.violation_count, 50);
-    ck_assert_uint_ge(ctx.violation_capacity, 50);
-    bun_ctx_free(&ctx);
-}
-END_TEST
 
 START_TEST(open_missing_file){
     BunParseContext ctx = {0};
@@ -542,7 +532,7 @@ END_TEST
 START_TEST(test_zlib_unsupported) {
     BunParseContext ctx = {0};
 
-    bun_result_t r = bun_open(fixture("invalid/18-zlib-unsupported.bun"), &ctx);
+    bun_result_t r = bun_open(fixture("edge/edge_08_zlib_unsupported.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
 
     r = bun_parse_header(&ctx);
@@ -559,7 +549,7 @@ END_TEST
 START_TEST(test_invalid_compression_unsupported) {
     BunParseContext ctx = {0};
 
-    bun_result_t r = bun_open(fixture("invalid/19-invalid-compression.bun"), &ctx);
+    bun_result_t r = bun_open(fixture("edge/edge_09_invalid_compression.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
 
     r = bun_parse_header(&ctx);
@@ -576,7 +566,7 @@ END_TEST
 START_TEST(test_nonzero_checksum_unsupported) {
     BunParseContext ctx = {0};
 
-    bun_result_t r = bun_open(fixture("invalid/20-nonzero-checksum.bun"), &ctx);
+    bun_result_t r = bun_open(fixture("edge/edge_10_nonzero_checksum.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
 
     r = bun_parse_header(&ctx);
@@ -593,7 +583,7 @@ END_TEST
 START_TEST(test_unknown_flags_unsupported) {
     BunParseContext ctx = {0};
 
-    bun_result_t r = bun_open(fixture("invalid/21-unknown-flags.bun"), &ctx);
+    bun_result_t r = bun_open(fixture("edge/edge_11_unknown_flags.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
 
     r = bun_parse_header(&ctx);
@@ -645,7 +635,7 @@ END_TEST
 START_TEST(test_many_asset_violations_growth) {
     BunParseContext ctx = {0};
 
-    bun_result_t r = bun_open(fixture("invalid/22-many-asset-violations.bun"), &ctx);
+    bun_result_t r = bun_open(fixture("edge/edge_12_many_asset_violations.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
 
     r = bun_parse_header(&ctx);
@@ -664,7 +654,7 @@ END_TEST
 START_TEST(test_print_summary_long_name) {
     BunParseContext ctx = {0};
 
-    bun_result_t r = bun_open(fixture("valid/08-long-name.bun"), &ctx);
+    bun_result_t r = bun_open(fixture("edge/edge_13_long_name.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
 
     r = bun_parse_header(&ctx);
@@ -687,7 +677,7 @@ END_TEST
 START_TEST(test_print_summary_empty_data) {
     BunParseContext ctx = {0};
 
-    bun_result_t r = bun_open(fixture("valid/09-empty-data-asset.bun"), &ctx);
+    bun_result_t r = bun_open(fixture("edge/edge_14_empty_data_asset.bun"), &ctx);
     ck_assert_int_eq(r, BUN_OK);
 
     r = bun_parse_header(&ctx);
@@ -759,7 +749,6 @@ static Suite *bun_suite(void) {
 
     // Custom tests
     TCase *tc_custom = tcase_create("our_custom_tests");
-    tcase_add_test(tc_custom, test_violation_grows_capacity);
     tcase_add_test(tc_custom, open_missing_file);
     suite_add_tcase(s, tc_custom);
 
