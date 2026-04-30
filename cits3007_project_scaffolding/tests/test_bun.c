@@ -423,17 +423,6 @@ START_TEST(test_valid_rle_large_stream) {
     bun_ctx_free(&ctx);
 }
 END_TEST
-/* START_TEST(test_violation_grows_capacity) {
-    BunParseContext ctx = {0};
-
-    for (int i = 0; i < 50; i++) {
-        bun_add_violation(&ctx, "violation %d", i);
-    }
-    ck_assert_uint_eq(ctx.violation_count, 50);
-    ck_assert_uint_ge(ctx.violation_capacity, 50);
-    bun_ctx_free(&ctx);
-}
-END_TEST */
 
 START_TEST(open_missing_file){
     BunParseContext ctx = {0};
@@ -759,7 +748,6 @@ static Suite *bun_suite(void) {
 
     // Custom tests
     TCase *tc_custom = tcase_create("our_custom_tests");
-    //tcase_add_test(tc_custom, test_violation_grows_capacity);
     tcase_add_test(tc_custom, open_missing_file);
     suite_add_tcase(s, tc_custom);
 
