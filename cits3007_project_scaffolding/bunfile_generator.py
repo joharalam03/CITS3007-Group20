@@ -351,7 +351,7 @@ def make_one_asset_fixture(
     *,
     asset_name: bytes = b"bad",
     payload: bytes = b"AAAA",
-    record_data_size: int | None = None,
+    record_data_size = None,
     uncompressed_size: int = 0,
     compression: int = COMPRESS_NONE,
     checksum: int = 0,
