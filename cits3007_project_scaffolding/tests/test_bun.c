@@ -512,7 +512,7 @@ START_TEST(test_parse_assets_zero_assets) {
 
     r = bun_parse_assets(&ctx);
     ck_assert_int_eq(r, BUN_OK);
-    ck_assert_ptr_ne(ctx.records, NULL);
+    ck_assert_ptr_null(ctx.records);
     ck_assert_uint_eq(ctx.record_count, 0);
 
     bun_close(&ctx);
