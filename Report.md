@@ -8,7 +8,7 @@
 
 1. **Name: Zawad Huda**  
    **Student Number: 23102177**  
-   **GitHub Username:zawadhuda**  
+   **GitHub Username: zawadhuda**  
 
 2. **Name: Johar Khan**  
    **Student Number: 24331036**  
@@ -20,7 +20,7 @@
 
 4. **Name: Mineth Perera**  
    **Student Number: 23284373**  
-   **GitHub Username:**  
+   **GitHub Username: ethnimp**  
 
 5. **Name: Synne Wikborg**  
    **Student Number: 24282424**  
@@ -255,33 +255,25 @@ bun_parse.c:532:24: warning: comparison of integer expressions of different sign
 | ^
 ```
 
-These warnings were relevant because the parser performs bounds checks using file offsets and section sizes from an input file. Signed and unsigned comparisons can hide logic errors in bounds checks, especially when offsets and sizes may be attacker-controlled.
-
-Change made:
-
 We fixed the warnings by converting ctx->file_size to u64 before comparing it with calculated section end values. This made the bounds checks use consistent unsigned integer types.
 
 Evidence:
 
-GitHub issue: #9, Compiler warning: signedness comparison in header bounds checks
+GitHub issue: #9
 
 - Second finding:
 
 GCC also reported that an asset allocation overflow check in 'bun_parse_assets' was ineffective because the condition was always false due to the limited range of 'ctx->record_count'.
 
-This was relevant because 'asset_count' comes from the input file and is used to allocate the asset record array. If this value is extremely large, the parser could attempt an unreasonable allocation.
-
-Change made:
-
-We removed the unreachable overflow check and replaced it with a practical sanity limit. If 'asset_count' is greater than 1,000,000, the parser records a violation and returns 'BUN_MALFORMED' before allocating the records array.
+We replaced it with a practical sanity limit. If 'asset_count' is greater than 1,000,000, the parser records a violation and returns 'BUN_MALFORMED' before allocating the records array.
 
 Evidence:
 
-GitHub issue: #10, Compiler warning: unreachable overflow check in asset allocation
+GitHub issue: #10
 
 Final result:
 
-After the fix, the issue was closed as completed and the test suite passed with all 22 tests passing and no failures or errors.
+After the fix, the test suite passed with all 22 tests passing and no failures or errors.
 
 ### cppcheck
 
@@ -294,6 +286,7 @@ make lint
 ```
 
 Finding:
+
 cppcheck reported a memory leak in bun_parse.c during asset name validation:
 
 ```
@@ -305,13 +298,11 @@ return BUN_ERR_NOMEM;
 
 This was important because name_buf is dynamically allocated while validating asset names. If an error path returned before freeing it, malformed files could cause the parser to leak memory.
 
-Change made:
-
 We added free(name_buf) before returning from the affected error paths. This ensures that the temporary asset-name buffer is released even when bun_add_violation fails.
 
 Evidence:
 
-GitHub issue: #18, Fix cppcheck memory leak in asset name validation
+GitHub issue: #18
 
 Final result:
 
@@ -343,4 +334,8 @@ Output formatting depends on the bytes we see. If the preview is mostly printabl
 
 File positioning is the other place this can go wrong. The function uses safe_fseeko and fread to seek into the string table and data section based on offsets from the parsed header and asset records, so the derived offsets have to be checked and kept consistent. If any seek or read fails, we treat it as an I/O failure rather than continuing with a bad file position.
 
+### Test Fixture
 
+The test suite depended on '.bun' fixture files placed under 'tests/fixtures/valid/' and 'tests/fixtures/invalid/'. However,'.gitignore' ignored '*.bun' files. These fixture files were not automatically tracked or included when the branch was pushed to GitHub. The tests could pass on one local machine but fail or be impossible to run on another machine if the fixtures had not been set up locally.
+
+This issue was addressed by identifying that the missing files were caused by Git ignore rules. After group discussion, it was concluded that the fixture files needed to be prepared locally. This helped make the testing process clearer and reduced confusion when reproducing test results across different machines. 
