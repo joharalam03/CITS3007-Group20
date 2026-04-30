@@ -335,4 +335,12 @@ For header parsing, the main challange was the number of layout and validity rul
 
 Another challange was 64-bit range arithmetic. Fields like data_section_offset and string_table_size are u64, so we treat offset + size as unsafe until we have proven it cannot overflow. That means we compute section ends with explicit overflow guards and only use the resulting ranges for overlap and bounds checks if those computations are valid.
 
+### bun_print_summary function
+
+For bun_print_summary, the main constraint is that names and payloads can be arbitrarily large, so we cannot safely read whole fields just to print them. The function prints a fixed 60-byte preview per field using fixed-size buffers, and it clamps the read length when the available name/payload is smaller than the preview. Reads are also bounded to the relevant section ranges so we do not accidentally step past the end of the string table or data section.
+
+Output formatting depends on the bytes we see. If the preview is mostly printable, we print it as text. Otherwise we fall back to a hex dump so binary data does not turn into garbage output or control characters in the terminal.
+
+File positioning is the other place this can go wrong. The function uses safe_fseeko and fread to seek into the string table and data section based on offsets from the parsed header and asset records, so the derived offsets have to be checked and kept consistent. If any seek or read fails, we treat it as an I/O failure rather than continuing with a bad file position.
+
 
