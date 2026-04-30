@@ -195,7 +195,7 @@ assert HEADER_SIZE == 60, f"Unexpected record size: {HEADER_SIZE}"
 assert RECORD_SIZE == 48, f"Unexpected record size: {RECORD_SIZE}"
 
 def make_asset_count_zero():
-    out_path = Path("edge_01_zero_assets.bun")
+    out_path = Path("tests/fixtures/edge/edge_01_zero_assets.bun")
 
     asset_count = 0
 
@@ -219,7 +219,7 @@ def make_asset_count_zero():
     print(f"Wrote {out_path}")
 
 def make_asset_count_large():
-    out_path = Path("edge_02_large_asset_count.bun")
+    out_path = Path("tests/fixtures/edge/edge_02_large_asset_count.bun")
 
     asset_count = 1_000_000
 
@@ -243,7 +243,7 @@ def make_asset_count_large():
     print(f"Wrote {out_path}")
 
 def make_asset_count_overflow():
-    out_path = Path("edge_03_overflow_asset_table.bun")
+    out_path = Path("tests/fixtures/edge/edge_03_overflow_asset_table.bun")
 
     asset_count = (2**32 // 48) + 1  
 
@@ -267,7 +267,7 @@ def make_asset_count_overflow():
     print(f"Wrote {out_path}")
 
 def make_max_name():
-    out_path = Path("edge_04_max_name.bun")
+    out_path = Path("tests/fixtures/edge/edge_04_max_name.bun")
 
     asset_name = b"A" * 256  
     payload = b"data"
@@ -306,7 +306,7 @@ def make_max_name():
     print(f"Wrote {out_path}")
 
 def make_rle_255():
-    out_path = Path("edge_05_rle_255.bun")
+    out_path = Path("tests/fixtures/edge/edge_05_rle_255.bun")
 
     asset_name = b"rle"
     rle_data = bytes([255, ord("A")])  
