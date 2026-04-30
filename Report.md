@@ -310,6 +310,15 @@ After the fix, the cppcheck memory leak warning was resolved.
 
 ## 5. Security Aspects
 
+In the MMORPG deployment, parser would process '.bun' files that are automatically downloaded by game client, this would be a vulnerability as a malicious or compromised content file could potentially be delivered to multiple players simultaneously. Another important risk is denial-of-service through compressed payloads. A naive parser could fully recompress RLE into memory leading to a small compressed input expanding into a larger output Our implementation avoids this through validating RLE data without the creation of decompressed output buffer. Function only reads the compressed stream using 4096 byte stack buffer which then accumulates the expanded length numerically. Furthermore, it also rejects invalid RLE structures such as any odd-sized RLE data, 0 count runs, truncated RLE payloads, and mismatched uncompressed sizes. This reduces the risk of decompression-bomb style inputs.
+
+Another risk we considered was tampering. The current format includes a checksum field. However, checksums are not a strong mechanism for proving authenticity, Trinity should add authenticated integrity protection, such as HMAC-SHA256 or a digital signature over the full `.bun` file. The client then should verify this before parsing the file by sing a trusted Trinity key. 
+
+The parser should also then be isolated from the main game client. Running the parser in a sandboxed or low privileged helper process would drastically reduce the potential of future parser vulnerability. Any bugs in the bun file would also result in limited damage due to the access limit. 
+
+For production use, we also would recommend enforcing other policy limits such as maximum file size, maximum per-asset payload size, and parse timeouts. 
+
+
 ## 6. Coding Standards
 We adopted a consistent C coding style during implementation of the BUN parser to ensure readability and maintainability. All functions and variables use snake_case naming, while struct types follow PascalCase as defined in bun.h. We avoid mixing naming conventions to keep the codebase consistent across multiple contributors.
 
