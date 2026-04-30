@@ -8,7 +8,7 @@
 
 1. **Name: Zawad Huda**  
    **Student Number: 23102177**  
-   **GitHub Username:**  
+   **GitHub Username:zawadhuda**  
 
 2. **Name: Johar Khan**  
    **Student Number: 24331036**  
@@ -144,7 +144,8 @@ The parser follows a “validate everything, but continue where possible” appr
 This ensures that the caller receives as much diagnostic information as possible. Fatal errors such as I/O failure or memory allocation failure stop parsing immediately because continuing would be unsafe or unreliable.
 
 [Validate_RLE]
-For RLE-compressed assets, we chose to validate the compressed stream without a pre-mature full compression into memory. This design is implemented in `bun_validate_rle()`, which uses a fixed stack buffer:
+
+For RLE-compressed assets, we chose to validate the compressed stream without a premature full decompression into memory. This design is implemented in `bun_validate_rle()`, which uses a fixed stack buffer:
 
 u8 buf[4096];
 
@@ -161,13 +162,7 @@ The final total is then checked against the given metadata:
 
 if (actual_uncompressed != r->uncompressed_size)
 
-This keeps memory usage within limits and avoids decompression-bomb style behaviour.
-
-We also introduced a sanity cap before allocating the asset record table:
-
-if (ctx->record_count > 1000000)
-
-This prevents excessive memory allocation from a malformed file declares an unreasonable number of assets.
+This keeps memory usage bounded and helps prevent decompression-bomb style behaviour.
 
 ## 3. Libraries Used
 
@@ -211,6 +206,27 @@ The supplied unit tests were run using:
 make test
 
 These tests identified missing fixture files (`BUN_ERR_IO`), incorrect header parsing return values, and regression issues after code changes.
+
+##GCOV
+
+gcov was utilised to measure code coverage of the parser. The test suite was compiled with:
+
+-fprofile-arcs -ftest-coverage
+
+and executed using the sample unit tests
+
+Coverage was generated using:
+
+gcov tests/test_runner-bun_parse.gcno
+
+The coverage report for bun_parse.c showed:
+
+Lines executed: 50.73% of 550
+
+This indicates that the main parsing logic, including header validation, asset parsing, and RLE validation, was exercised during testing. Both valid and invalid RLE cases were covered, including zero-count runs, truncated data, and mismatched sizes.
+
+Some branches remain uncovered, primarily defensive checks and rare error paths that are not triggered by the provided test cases.
+To increase the covered percentage to acceptable standards, we created custom tests to test the remainder of the code. 
 
 
 ### GCC Warning Flags
