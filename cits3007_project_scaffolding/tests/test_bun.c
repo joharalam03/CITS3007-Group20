@@ -512,7 +512,8 @@ START_TEST(test_parse_assets_zero_assets) {
 
     r = bun_parse_assets(&ctx);
     ck_assert_int_eq(r, BUN_OK);
-    ck_assert_ptr_ne(ctx.records, NULL);
+
+    ck_assert_ptr_eq(ctx.records, NULL);
     ck_assert_uint_eq(ctx.record_count, 0);
 
     bun_close(&ctx);
@@ -696,6 +697,102 @@ START_TEST(test_print_summary_empty_data) {
 }
 END_TEST
 
+
+// edge tests
+START_TEST(test_edge_zero_assets) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("edge/edge_01_zero_assets.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+    ck_assert_uint_eq(ctx.header.asset_count, 0);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    ck_assert_uint_eq(ctx.record_count, 0);
+    ck_assert_ptr_eq(ctx.records, NULL);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+
+START_TEST(test_edge_large_asset_count) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("edge/edge_02_large_asset_count.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+
+    // Accept either safe failure or detection
+    ck_assert(r == BUN_MALFORMED || r == BUN_ERR_IO || r == BUN_UNSUPPORTED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+
+START_TEST(test_edge_overflow_asset_table) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("edge/edge_03_overflow_asset_table.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_MALFORMED);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+
+START_TEST(test_edge_max_name) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("edge/edge_04_max_name.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    // sanity check: at least one asset parsed
+    ck_assert_uint_eq(ctx.record_count, 1);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
+
+START_TEST(test_edge_rle_255) {
+    BunParseContext ctx = {0};
+
+    bun_result_t r = bun_open(fixture("edge/edge_05_rle_255.bun"), &ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_header(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    r = bun_parse_assets(&ctx);
+    ck_assert_int_eq(r, BUN_OK);
+
+    ck_assert_uint_ge(ctx.record_count, 1);
+
+    bun_close(&ctx);
+    bun_ctx_free(&ctx);
+}
+END_TEST
+
 static Suite *bun_suite(void) {
     Suite *s = suite_create("bun-suite");
 
@@ -745,6 +842,13 @@ static Suite *bun_suite(void) {
     tcase_add_test(tc_assets, test_print_summary_long_name);
     tcase_add_test(tc_assets, test_print_summary_empty_data);
     suite_add_tcase(s, tc_assets);
+
+
+    tcase_add_test(tc_assets, test_edge_zero_assets);
+    tcase_add_test(tc_assets, test_edge_large_asset_count);
+    tcase_add_test(tc_assets, test_edge_overflow_asset_table);
+    tcase_add_test(tc_assets, test_edge_max_name);
+    tcase_add_test(tc_assets, test_edge_rle_255);
 
     // Custom tests
     TCase *tc_custom = tcase_create("our_custom_tests");
