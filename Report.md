@@ -228,6 +228,12 @@ This indicates that the main parsing logic, including header validation, asset p
 Some branches remain uncovered, primarily defensive checks and rare error paths that are not triggered by the provided test cases.
 To increase the covered percentage to acceptable standards, we created custom tests to test the remainder of the code. 
 
+To improve coverage after the first gcov run, we reviewed the uncovered lines and identified those that resulted in defensive error paths, malformed-file checks, and RLE-specific validation branches. We also added additional targeted tests for invalid RLE structures, including zero-count runs, truncated RLE payloads, odd-sized RLE data, and mismatched uncompressed sizes. These improvements increased confidence that the RLE validation logic was not only present in the code but also properly exercised. We used the following command to check the coverage:
+
+gcov tests/test_runner-bun_parse.gcno
+
+To further improve coverage, we added tests for previously uncovered validation paths, particularly malformed RLE inputs and defensive error-handling branches. The final gcov coverage percentage we achieved was 70%.
+
 
 ### GCC Warning Flags
 
